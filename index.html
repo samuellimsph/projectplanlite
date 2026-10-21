@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Planner</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#fff; --line:#e3e6ea; --text:#1f2937; --muted:#6b7280;
+  --accent:#2563eb; --accent-d:#1d4ed8; --sel:#e8f0fe; --sum:#f3f4f6; --danger:#dc2626;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:13px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg)}
+#app{display:flex;flex-direction:column;height:100vh}
+header{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{font-weight:700;font-size:15px;letter-spacing:.2px}
+#pname{font-size:14px;font-weight:600;border:1px solid transparent;border-radius:6px;padding:4px 8px;min-width:220px;background:transparent}
+#pname:hover,#pname:focus{border-color:var(--line);background:#fff;outline:none}
+#dirty{color:#d97706;font-size:12px;min-width:70px}
+.grp{display:flex;gap:6px;align-items:center}
+.grp+.grp{padding-left:16px;border-left:1px solid var(--line)}
+button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--text)}
+button:hover{background:#f1f5f9}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{background:var(--accent-d)}
+button.danger{color:var(--danger)}
+label{display:flex;gap:5px;align-items:center;cursor:pointer}
+input[type=date],input[type=text],input[type=number]{font:inherit;color:inherit}
+.toolbar{display:flex;gap:6px;align-items:center;padding:6px 12px;background:#fafbfc;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.toolbar .sep{width:1px;height:20px;background:var(--line);margin:0 4px}
+main{flex:1;min-height:0;display:flex}
+#lpane{width:58%;min-width:260px;overflow:scroll;background:var(--panel)}
+#divider{width:6px;cursor:col-resize;background:var(--line);flex:none}
+#divider:hover{background:#c7d2e0}
+#rpane{flex:1;min-width:200px;overflow:scroll;background:var(--panel);position:relative}
+#ginner{position:relative}
+#ghdr{position:sticky;top:0;z-index:3;background:#fff;height:48px}
+table#grid{border-collapse:separate;border-spacing:0;table-layout:fixed}
+#grid th{position:sticky;top:0;z-index:3;height:48px;background:#f8fafc;border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:left;padding:0 6px;font-weight:600;font-size:12px;color:#374151}
+#grid td{height:30px;padding:0 4px;border-bottom:1px solid var(--line);border-right:1px solid #f0f2f5;white-space:nowrap;overflow:hidden}
+#grid tr.sum td{background:var(--sum);font-weight:600}
+#grid tr.sel td{background:var(--sel)}
+#grid input{height:24px;width:100%;border:1px solid transparent;border-radius:4px;padding:0 4px;background:transparent;font-size:12px}
+#grid input:hover{border-color:var(--line)}
+#grid input:focus{outline:none;border-color:var(--accent);background:#fff}
+#grid tr.sum input[data-f=name]{font-weight:600}
+#grid input[type=date]{padding:0 2px}
+#grid .c-name{display:flex;align-items:center;gap:2px}
+#grid .c-name input{flex:1;min-width:0}
+#grid .c-start{display:flex;align-items:center;gap:2px;height:30px}
+.tog{display:inline-block;width:16px;text-align:center;cursor:pointer;color:var(--muted);user-select:none;flex:none}
+.tog.sp{cursor:default}
+.ro{display:inline-block;padding:0 4px;font-size:12px}
+.c-wbs{color:var(--muted);font-variant-numeric:tabular-nums}
+.warn{color:var(--danger);cursor:help;flex:none}
+.pin{font-size:11px;flex:none;cursor:help}
+.status{font-size:12px;color:#374151}
+#statusbar{padding:5px 12px;background:var(--panel);border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+.ov{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:50}
+.modal{background:#fff;border-radius:10px;width:640px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.mh{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);font-size:15px}
+.mh .x{border:none;font-size:16px}
+.mb{padding:14px 16px;overflow:auto}
+.mb table{width:100%;border-collapse:collapse}
+.mb th,.mb td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+.mb .row{display:flex;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap}
+.mb input[type=text],.mb input[type=date],.mb textarea{border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+.mb textarea{width:100%;min-height:70px;font:12px monospace}
+.mb .hint{color:var(--muted);font-size:12px}
+#toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);background:#111827;color:#fff;padding:9px 16px;border-radius:8px;z-index:99;opacity:0;pointer-events:none;transition:opacity .2s;max-width:80vw}
+#toast.show{opacity:1}
+#printArea{display:none}
+@page{size:A4 landscape;margin:10mm}
+@media print{
+  html,body{height:auto;background:#fff}
+  #app,#modal-root,#toast{display:none!important}
+  #printArea{display:block}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .p-head h1{font-size:18px;margin:0 0 2px}
+  .p-head .meta{color:#555;font-size:10px;margin-bottom:8px}
+  .p-table{width:100%;border-collapse:collapse;font-size:9px}
+  .p-table th{background:#eef1f5;text-align:left;padding:3px 4px;border:1px solid #cfd5dc}
+  .p-table td{padding:2px 4px;border:1px solid #dfe3e8}
+  .p-table tr.sum td{background:#f1f3f6;font-weight:700}
+  .p-table thead{display:table-header-group}
+  .p-table tr{break-inside:avoid}
+  .p-gantt{break-before:page}
+  .p-gantt h2{font-size:14px;margin:0 0 6px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">Project Planner</div>
+    <div class="grp"><input id="pname" type="text" title="Project name"><span id="dirty"></span></div>
+    <div class="grp">
+      <button id="btnNew">New</button>
+      <button id="btnOpen">Open…</button>
+      <button id="btnSave" class="primary">Save</button>
+      <button id="btnSaveAs">Save As…</button>
+      <button id="btnExport" title="Download the project as a .json file">Export JSON</button>
+      <button id="btnImport" title="Load a project from a .json file">Import JSON</button>
+      <input id="fileIn" type="file" accept=".json,application/json" hidden>
+    </div>
+    <div class="grp">
+      <label title="When off, Saturdays and Sundays are skipped in effort and date calculations"><input type="checkbox" id="incW"> Include weekends</label>
+      <label>Project start <input type="date" id="pstart"></label>
+      <button id="btnHol">Holidays (0)</button>
+    </div>
+    <div class="grp"><label>Zoom <input type="range" id="zoom" min="4" max="40" step="1"></label></div>
+    <div class="grp"><button id="btnPdf" class="primary" title="Opens the print dialog in landscape. Choose 'Save as PDF'.">Export PDF</button></div>
+  </header>
+  <div class="toolbar">
+    <button id="tAdd">+ Task</button>
+    <button id="tSub">+ Subtask</button>
+    <span class="sep"></span>
+    <button id="tOut" title="Promote (outdent)">◀ Outdent</button>
+    <button id="tIn" title="Demote (indent)">Indent ▶</button>
+    <button id="tUp">▲ Up</button>
+    <button id="tDown">▼ Down</button>
+    <span class="sep"></span>
+    <button id="tDel" class="danger">Delete</button>
+    <span class="sep"></span>
+    <button id="tExp">Expand all</button>
+    <button id="tCol">Collapse all</button>
+    <span style="margin-left:auto;color:var(--muted);font-size:12px">Predecessors: WBS codes, e.g. <b>1.2</b>, <b>2.1SS+2d</b>, <b>3FF-1d</b> (types FS, SS, FF, SF)</span>
+  </div>
+  <main id="split">
+    <div id="lpane"><table id="grid"><colgroup id="cg"></colgroup><thead><tr id="thr"></tr></thead><tbody id="gridBody"></tbody></table></div>
+    <div id="divider"></div>
+    <div id="rpane"><div id="ginner"><div id="ghdr"></div><div id="gbody"></div></div></div>
+  </main>
+  <div id="statusbar"></div>
+</div>
+<div id="printArea"></div>
+<div id="modal-root"></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/*CORE-START*/
+const DAY = 86400000;
+const toDn = s => (s && /^\d{4}-\d{2}-\d{2}$/.test(s)) ? Math.floor(Date.UTC(+s.slice(0,4), +s.slice(5,7)-1, +s.slice(8,10)) / DAY) : null;
+const fromDn = dn => dn == null ? '' : new Date(dn * DAY).toISOString().slice(0,10);
+const dow = dn => new Date(dn * DAY).getUTCDay();
+const todayDn = () => { const d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY); };
+
+let P = null;          // current project
+let ctx = {hol: new Set(), inc: false};
+let S = {};            // computed schedule keyed by task uid
+
+function buildCal(){
+  ctx.hol = new Set(P.holidays.map(h => toDn(h.date)).filter(x => x != null));
+  ctx.inc = !!P.settings.includeWeekends;
+}
+function isWork(dn){
+  if (ctx.hol.has(dn)) return false;
+  if (!ctx.inc) { const w = dow(dn); if (w === 0 || w === 6) return false; }
+  return true;
+}
+function nextWork(dn){ let n = 0; while (!isWork(dn) && n++ < 4000) dn++; return dn; }
+function prevWork(dn){ let n = 0; while (!isWork(dn) && n++ < 4000) dn--; return dn; }
+function shiftWork(dn, k){
+  if (k > 0) { for (let i = 0; i < k; i++) { dn++; dn = nextWork(dn); } }
+  else if (k < 0) { for (let i = 0; i < -k; i++) { dn--; dn = prevWork(dn); } }
+  return dn;
+}
+function endFromStart(s, eff){ s = nextWork(s); const n = Math.ceil(eff); return n <= 1 ? s : shiftWork(s, n - 1); }
+function startFromEnd(e, eff){ e = prevWork(e); const n = Math.ceil(eff); return n <= 1 ? e : shiftWork(e, -(n - 1)); }
+function countWork(a, b){ if (b < a) return 0; let c = 0; for (let d = a; d <= b && d - a < 20000; d++) if (isWork(d)) c++; return c; }
+
+function compute(){
+  buildCal();
+  S = {};
+  const stack = [];
+  P.tasks.forEach((t, i) => {
+    while (stack.length && S[stack[stack.length-1]].t.level >= t.level) stack.pop();
+    const parent = stack.length ? stack[stack.length-1] : null;
+    S[t.uid] = {t, idx:i, parent, children:[], wbs:'', summary:false, visiting:false, done:false, err:'', start:null, end:null, effort:0, as:null, ae:null};
+    if (parent !== null) S[parent].children.push(t.uid);
+    stack.push(t.uid);
+  });
+  const cnt = [];
+  P.tasks.forEach(t => { cnt.length = t.level + 1; cnt[t.level] = (cnt[t.level] || 0) + 1; S[t.uid].wbs = cnt.join('.'); S[t.uid].summary = S[t.uid].children.length > 0; });
+  P.tasks.forEach(t => calc(t.uid));
+}
+
+function calc(uid){
+  const s = S[uid]; if (s.done) return;
+  s.visiting = true;
+  if (s.summary) {
+    let mn = Infinity, mx = -Infinity, eff = 0, as = Infinity, ae = -Infinity, allDone = true;
+    for (const c of s.children) {
+      const cs = S[c];
+      if (cs.visiting) { s.err = cs.err = 'Circular dependency'; continue; }
+      calc(c);
+      if (cs.start != null) { mn = Math.min(mn, cs.start); mx = Math.max(mx, cs.end); }
+      eff += cs.effort;
+      if (cs.as != null) as = Math.min(as, cs.as);
+      if (cs.ae != null) ae = Math.max(ae, cs.ae); else allDone = false;
+      if (cs.err && !s.err) s.err = cs.err;
+    }
+    s.start = isFinite(mn) ? mn : nextWork(toDn(P.settings.projectStart));
+    s.end = isFinite(mx) ? mx : s.start;
+    s.effort = eff;
+    s.as = isFinite(as) ? as : null;
+    s.ae = (allDone && isFinite(ae)) ? ae : null;
+  } else {
+    const t = s.t;
+    const eff = Math.max(0, Math.round(+t.effort || 0));
+    const base = t.startNoEarlier ? toDn(t.startNoEarlier) : toDn(P.settings.projectStart);
+    let start = nextWork(base == null ? todayDn() : base);
+    for (const p of t.preds) {
+      const ps = S[p.uid]; if (!ps) continue;
+      if (ps.visiting) { s.err = 'Circular dependency'; continue; }
+      calc(p.uid);
+      let cand;
+      switch (p.type) {
+        case 'SS': cand = shiftWork(ps.start, p.lag); break;
+        case 'FF': cand = startFromEnd(shiftWork(ps.end, p.lag), eff); break;
+        case 'SF': cand = startFromEnd(shiftWork(ps.start, p.lag), eff); break;
+        default:   cand = shiftWork(ps.end, 1 + p.lag);
+      }
+      if (cand > start) start = cand;
+    }
+    start = nextWork(start);
+    s.start = start;
+    s.end = eff <= 0 ? start : endFromStart(start, eff);
+    s.effort = eff;
+    s.as = toDn(t.actualStart);
+    s.ae = toDn(t.actualEnd);
+  }
+  s.visiting = false; s.done = true;
+}
+/*CORE-END*/
+
+// ---------- helpers ----------
+const $ = (q, el = document) => el.querySelector(q);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtLong = dn => { if (dn == null) return ''; const d = new Date(dn * DAY); return `${String(d.getUTCDate()).padStart(2,'0')} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ui = {zoom: 22, dirty: false, projectId: null};
+let selected = null;
+let toastT;
+function toast(msg){ const el = $('#toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 3200); }
+
+// ---------- data model ----------
+const SG_2026 = [
+  ['2026-01-01',"New Year's Day"],['2026-02-17','Chinese New Year'],['2026-02-18','Chinese New Year'],
+  ['2026-03-21','Hari Raya Puasa'],['2026-04-03','Good Friday'],['2026-05-01','Labour Day'],
+  ['2026-05-27','Hari Raya Haji'],['2026-05-31','Vesak Day'],['2026-06-01','Vesak Day (observed)'],
+  ['2026-08-09','National Day'],['2026-08-10','National Day (observed)'],
+  ['2026-11-08','Deepavali'],['2026-11-09','Deepavali (observed)'],['2026-12-25','Christmas Day']
+];
+function blankProject(name){
+  return {name: name || 'Untitled project', settings: {includeWeekends: false, projectStart: fromDn(todayDn())}, holidays: [], tasks: [], nextUid: 1};
+}
+function mkTask(name, level, effort){
+  return {uid: P.nextUid++, name, level, effort, startNoEarlier: '', actualStart: '', actualEnd: '', preds: [], collapsed: false};
+}
+function sampleProject(){
+  P = blankProject('Sample project');
+  P.holidays = SG_2026.map(([date, name]) => ({date, name}));
+  const spec = [
+    ['Planning',0,0],['Kick-off meeting',1,1],['Gather requirements',1,5,[[1,'FS',0]]],['Design sign-off (milestone)',1,0,[[2,'FS',0]]],
+    ['Build',0,0],['Set up environment',1,3,[[3,'FS',0]]],['Develop features',1,10,[[5,'FS',0]]],['Write documentation',1,4,[[5,'SS',2]]],
+    ['Testing',0,0],['System testing',1,5,[[6,'FS',0]]],['User acceptance testing',1,5,[[9,'FS',1]]],
+    ['Go-live',0,0],['Deployment',1,2,[[10,'FS',0]]],['Go-live (milestone)',1,0,[[12,'FS',0]]]
+  ];
+  spec.forEach(([n, l, e]) => P.tasks.push(mkTask(n, l, e)));
+  spec.forEach((sp, i) => { if (sp[3]) P.tasks[i].preds = sp[3].map(([idx, type, lag]) => ({uid: P.tasks[idx].uid, type, lag})); });
+  compute();
+  const kick = P.tasks[1]; kick.actualStart = fromDn(S[kick.uid].start); kick.actualEnd = fromDn(S[kick.uid].start);
+  const req = P.tasks[2]; req.actualStart = fromDn(S[req.uid].start);
+}
+function normalize(){
+  P.settings = Object.assign({includeWeekends: false, projectStart: fromDn(todayDn())}, P.settings || {});
+  if (!toDn(P.settings.projectStart)) P.settings.projectStart = fromDn(todayDn());
+  P.holidays = (P.holidays || []).filter(h => toDn(h.date) != null);
+  let mx = 0;
+  P.tasks = (P.tasks || []).map(t => {
+    mx = Math.max(mx, +t.uid || 0);
+    return Object.assign({name: '', level: 0, effort: 1, startNoEarlier: '', actualStart: '', actualEnd: '', preds: [], collapsed: false}, t);
+  });
+  P.nextUid = Math.max(P.nextUid || 1, mx + 1);
+  const ids = new Set(P.tasks.map(t => t.uid));
+  P.tasks.forEach((t, i) => {
+    t.level = clamp(Math.round(+t.level || 0), 0, i === 0 ? 0 : P.tasks[i-1].level + 1);
+    t.preds = (t.preds || []).filter(p => ids.has(p.uid) && p.uid !== t.uid).map(p => ({uid: p.uid, type: ['FS','SS','FF','SF'].includes(p.type) ? p.type : 'FS', lag: Math.round(+p.lag || 0)}));
+  });
+}
+
+// ---------- persistence ----------
+const LIB_KEY = 'plannerLite.lib', WORK_KEY = 'plannerLite.working';
+function lsGet(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+function lsSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { toast('Browser storage unavailable: use Export JSON to keep your work'); return false; } }
+let persistT;
+function persistWorking(){ clearTimeout(persistT); persistT = setTimeout(() => lsSet(WORK_KEY, {P, projectId: ui.projectId, dirty: ui.dirty}), 250); }
+function markDirty(){ ui.dirty = true; updateDirty(); persistWorking(); }
+function updateDirty(){ $('#dirty').textContent = ui.dirty ? '● unsaved' : (ui.projectId ? 'saved' : ''); }
+const clone = o => JSON.parse(JSON.stringify(o));
+function saveProject(asNew){
+  if (asNew || !ui.projectId) {
+    const name = prompt('Save project as:', P.name || 'Untitled project');
+    if (!name) return;
+    P.name = name.trim() || 'Untitled project';
+    ui.projectId = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+  const lib = lsGet(LIB_KEY, {});
+  lib[ui.projectId] = {id: ui.projectId, name: P.name, updated: Date.now(), data: clone(P)};
+  if (lsSet(LIB_KEY, lib)) { ui.dirty = false; setHeader(); persistWorking(); toast(`Saved "${P.name}"`); }
+}
+function loadInto(data, projectId){
+  P = clone(data); normalize(); ui.projectId = projectId; ui.dirty = false; selected = null;
+  compute(); setHeader(); renderAll(); persistWorking();
+  $('#rpane').scrollLeft = 0; $('#lpane').scrollTop = 0;
+}
+function confirmDiscard(){ return !ui.dirty || confirm('You have unsaved changes. Discard them?'); }
+
+// ---------- table ----------
+const COLS = [['wbs','WBS',56],['name','Task name',260],['effort','Effort (d)',72],['start','Planned start',128],['end','Planned end',122],['as','Actual start',122],['ae','Actual end',122],['preds','Predecessors',120],['status','Status',150]];
+function buildHead(){
+  $('#cg').innerHTML = COLS.map(c => `<col style="width:${c[2]}px">`).join('');
+  $('#thr').innerHTML = COLS.map(c => `<th title="${c[0]==='effort'?'Working days of effort':''}">${c[1]}</th>`).join('');
+  $('#grid').style.width = COLS.reduce((a, c) => a + c[2], 0) + 'px';
+}
+function visibleUids(){
+  const out = []; let hide = null;
+  for (const t of P.tasks) {
+    if (hide !== null) { if (t.level > hide) continue; hide = null; }
+    out.push(t.uid);
+    if (t.collapsed && S[t.uid].summary) hide = t.level;
+  }
+  return out;
+}
+function predText(t){
+  return t.preds.map(p => { const ps = S[p.uid]; if (!ps) return ''; return ps.wbs + (p.type === 'FS' ? '' : p.type) + (p.lag ? (p.lag > 0 ? '+' : '') + p.lag + 'd' : ''); }).filter(Boolean).join(', ');
+}
+function statusText(s){
+  const td = todayDn();
+  if (s.ae != null) {
+    let v = ' · on time';
+    if (s.ae > s.end) v = ` · +${countWork(s.end + 1, s.ae)}d late`;
+    else if (s.ae < s.end) v = ` · ${countWork(s.ae + 1, s.end)}d early`;
+    return 'Complete' + v;
+  }
+  if (s.as != null) return 'In progress' + (td > s.end ? ' · overdue' : '');
+  return td > s.end && !s.summary ? 'Not started · overdue' : 'Not started';
+}
+function valueFor(s, f){
+  switch (f) {
+    case 'wbs': return s.wbs;
+    case 'name': return s.t.name;
+    case 'effort': return s.summary ? s.effort : s.t.effort;
+    case 'start': return fromDn(s.start);
+    case 'end': return fromDn(s.end);
+    case 'as': return s.as != null ? fromDn(s.as) : '';
+    case 'ae': return s.ae != null ? fromDn(s.ae) : '';
+    case 'preds': return predText(s.t);
+    case 'status': return statusText(s);
+  }
+  return '';
+}
+function rowHTML(uid){
+  const s = S[uid], t = s.t, sum = s.summary;
+  const ro = f => `<span class="ro" data-uid="${uid}" data-f="${f}"></span>`;
+  const inp = (f, type, extra = '') => `<input type="${type}" data-uid="${uid}" data-f="${f}" ${extra}>`;
+  const tog = sum ? `<span class="tog" data-uid="${uid}">${t.collapsed ? '▸' : '▾'}</span>` : '<span class="tog sp"></span>';
+  return `<tr data-uid="${uid}" class="${sum ? 'sum' : ''}${uid === selected ? ' sel' : ''}">
+    <td class="c-wbs">${ro('wbs')}</td>
+    <td class="c-name" style="padding-left:${4 + t.level * 16}px">${tog}${inp('name','text')}<span class="warn" data-uid="${uid}" data-f="err">⚠</span></td>
+    <td>${sum ? ro('effort') : inp('effort','number','min="0" step="1" title="Effort in working days (0 = milestone)"')}</td>
+    <td>${sum ? ro('start') : `<div class="c-start">${inp('start','date')}<span class="pin" data-uid="${uid}" data-f="pin" title="Start-no-earlier-than constraint set. Clear the date to remove it.">📌</span></div>`}</td>
+    <td>${sum ? ro('end') : inp('end','date')}</td>
+    <td>${sum ? ro('as') : inp('as','date')}</td>
+    <td>${sum ? ro('ae') : inp('ae','date')}</td>
+    <td>${sum ? ro('preds') : inp('preds','text','placeholder="e.g. 1.2, 2SS+1d"')}</td>
+    <td><span class="status" data-uid="${uid}" data-f="status"></span></td>
+  </tr>`;
+}
+function renderTable(){
+  $('#gridBody').innerHTML = visibleUids().map(rowHTML).join('');
+  refreshValues(true);
+}
+function refreshValues(force){
+  const act = force ? null : document.activeElement;
+  $('#gridBody').querySelectorAll('[data-f]').forEach(el => {
+    const uid = +el.dataset.uid, f = el.dataset.f, s = S[uid];
+    if (!s || el === act) return;
+    if (f === 'err') { el.style.visibility = s.err ? 'visible' : 'hidden'; el.title = s.err; return; }
+    if (f === 'pin') { el.style.visibility = s.t.startNoEarlier ? 'visible' : 'hidden'; return; }
+    const v = valueFor(s, f);
+    if (el.tagName === 'INPUT') el.value = v; else el.textContent = v;
+  });
+}
+function parsePreds(text, selfUid){
+  const map = {}; Object.values(S).forEach(s => map[s.wbs] = s.t.uid);
+  const out = [];
+  for (const raw of text.split(/[,;]/)) {
+    const tok = raw.trim(); if (!tok) continue;
+    const m = tok.match(/^(\d+(?:\.\d+)*)\s*(FS|SS|FF|SF)?\s*(?:([+-])\s*(\d+)\s*d?)?$/i);
+    if (!m) throw new Error(`Can't read "${tok}". Use e.g. 1.2, 2.1SS+2d, 3FF-1d`);
+    const uid = map[m[1]];
+    if (!uid) throw new Error(`No task with WBS ${m[1]}`);
+    if (uid === selfUid) throw new Error('A task cannot depend on itself');
+    if (out.some(o => o.uid === uid)) continue;
+    out.push({uid, type: (m[2] || 'FS').toUpperCase(), lag: m[3] ? (m[3] === '-' ? -1 : 1) * +m[4] : 0});
+  }
+  return out;
+}
+function hasErrors(){ return Object.values(S).some(s => s.err); }
+function handleEdit(el){
+  const uid = +el.dataset.uid, f = el.dataset.f, s = S[uid]; if (!s) return;
+  const t = s.t, v = el.value;
+  try {
+    switch (f) {
+      case 'name': t.name = v; break;
+      case 'effort': t.effort = Math.max(0, Math.round(+v || 0)); break;
+      case 'start':
+        if (v === fromDn(s.start) && !t.startNoEarlier) return;
+        if (v === fromDn(s.start)) break;
+        t.startNoEarlier = v; break;
+      case 'end': {
+        if (!v || v === fromDn(s.end)) break;
+        const e = toDn(v);
+        if (e < s.start) { toast('Planned end is before planned start'); break; }
+        t.effort = countWork(s.start, e); break;
+      }
+      case 'as': case 'ae': {
+        const k = f === 'as' ? 'actualStart' : 'actualEnd';
+        const other = f === 'as' ? t.actualEnd : t.actualStart;
+        if (v && other && ((f === 'as' && v > other) || (f === 'ae' && v < other))) { toast('Actual end cannot be before actual start'); break; }
+        t[k] = v; break;
+      }
+      case 'preds': {
+        const old = t.preds;
+        t.preds = parsePreds(v, uid);
+        compute();
+        if (hasErrors()) { t.preds = old; compute(); toast('That would create a circular dependency'); }
+        break;
+      }
+    }
+  } catch (err) { toast(err.message); }
+  afterEdit();
+  el.value = valueFor(S[uid], f);
+}
+function afterEdit(){ compute(); refreshValues(); renderGantt(); renderStatus(); markDirty(); }
+
+// ---------- structure operations ----------
+const idxOf = uid => P.tasks.findIndex(t => t.uid === uid);
+function blockEnd(i){ let j = i + 1; while (j < P.tasks.length && P.tasks[j].level > P.tasks[i].level) j++; return j; }
+function structChanged(){ normalize(); compute(); renderAll(); markDirty(); }
+function addTask(sub){
+  let i, level;
+  if (selected != null) {
+    i = idxOf(selected); const base = P.tasks[i];
+    if (sub) { level = base.level + 1; base.collapsed = false; } else level = base.level;
+    i = blockEnd(i);
+  } else {
+    if (sub) { toast('Select a task first'); return; }
+    i = P.tasks.length; level = 0;
+  }
+  const t = mkTask('New task', level, 1);
+  P.tasks.splice(i, 0, t); selected = t.uid;
+  structChanged();
+  const inp = $(`#gridBody input[data-uid="${t.uid}"][data-f="name"]`);
+  if (inp) { inp.focus(); inp.select(); inp.scrollIntoView({block: 'nearest'}); }
+}
+function indent(){
+  if (selected == null) return toast('Select a task first');
+  const i = idxOf(selected); if (i === 0 || P.tasks[i].level > P.tasks[i-1].level) return;
+  for (let k = i; k < blockEnd(i); k++) P.tasks[k].level++;
+  structChanged();
+}
+function outdent(){
+  if (selected == null) return toast('Select a task first');
+  const i = idxOf(selected); if (P.tasks[i].level === 0) return;
+  for (let k = i; k < blockEnd(i); k++) P.tasks[k].level--;
+  structChanged();
+}
+function move(dir){
+  if (selected == null) return toast('Select a task first');
+  const i = idxOf(selected), e = blockEnd(i), lv = P.tasks[i].level;
+  if (dir < 0) {
+    let k = i - 1; while (k >= 0 && P.tasks[k].level > lv) k--;
+    if (k < 0 || P.tasks[k].level < lv) return;
+    const blk = P.tasks.splice(i, e - i); P.tasks.splice(k, 0, ...blk);
+  } else {
+    if (e >= P.tasks.length || P.tasks[e].level !== lv) return;
+    const e2 = blockEnd(e);
+    const blk = P.tasks.splice(i, e - i); P.tasks.splice(e2 - blk.length, 0, ...blk);
+  }
+  structChanged();
+}
+function deleteTask(){
+  if (selected == null) return toast('Select a task first');
+  const i = idxOf(selected), e = blockEnd(i);
+  if (e - i > 1 && !confirm(`Delete this task and its ${e - i - 1} subtask(s)?`)) return;
+  const gone = new Set(P.tasks.slice(i, e).map(t => t.uid));
+  P.tasks.splice(i, e - i);
+  P.tasks.forEach(t => t.preds = t.preds.filter(p => !gone.has(p.uid)));
+  selected = P.tasks.length ? P.tasks[Math.min(i, P.tasks.length - 1)].uid : null;
+  structChanged();
+}
+function setAllCollapsed(v){ P.tasks.forEach(t => { if (S[t.uid].summary) t.collapsed = v; }); renderAll(); markDirty(); }
+function select(uid){
+  if (selected === uid) return;
+  selected = uid;
+  $('#gridBody').querySelectorAll('tr').forEach(tr => tr.classList.toggle('sel', +tr.dataset.uid === uid));
+}
+
+// ---------- Gantt ----------
+let markerN = 0;
+function buildGantt(o){
+  const rows = o.rows, rowH = 30, hdrH = 48, labW = o.labels ? o.labW : 0;
+  let mn = Infinity, mx = -Infinity;
+  P.tasks.forEach(t => { const s = S[t.uid]; if (s.start != null) { mn = Math.min(mn, s.start); mx = Math.max(mx, s.end); } if (s.as != null) mn = Math.min(mn, s.as); if (s.ae != null) mx = Math.max(mx, s.ae); });
+  if (!isFinite(mn)) { mn = toDn(P.settings.projectStart); mx = mn + 27; }
+  const startDn = mn - 2, endDn = Math.max(mx + 6, startDn + 27), days = endDn - startDn + 1;
+  const dw = o.fitWidth ? clamp(o.fitWidth / days, 2.5, 22) : ui.zoom;
+  const X = dn => labW + (dn - startDn) * dw;
+  const W = labW + days * dw, bodyH = rows.length * rowH;
+  const td = todayDn(), mk = 'ah' + (++markerN);
+  let hdr = '', body = '';
+  // header: months
+  let d = startDn;
+  while (d <= endDn) {
+    const dt = new Date(d * DAY), m = dt.getUTCMonth(); let e = d;
+    while (e + 1 <= endDn && new Date((e + 1) * DAY).getUTCMonth() === m) e++;
+    const w = (e - d + 1) * dw;
+    hdr += `<rect x="${X(d)}" y="0" width="${w}" height="24" fill="#f8fafc" stroke="#e3e6ea"/>`;
+    hdr += `<text x="${X(d) + 5}" y="16" font-size="11" font-weight="600" fill="#374151">${w > 70 ? MON[m] + ' ' + dt.getUTCFullYear() : (w > 26 ? MON[m] : '')}</text>`;
+    d = e + 1;
+  }
+  hdr += `<rect x="${labW}" y="24" width="${days * dw}" height="24" fill="#fff"/>`;
+  for (let k = startDn; k <= endDn; k++) {
+    const x = X(k), nw = !isWork(k);
+    if (dw >= 14) {
+      hdr += `<rect x="${x}" y="24" width="${dw}" height="24" fill="${nw ? '#f1f5f9' : '#fff'}" stroke="#eceff3"/>`;
+      hdr += `<text x="${x + dw / 2}" y="40" font-size="10" text-anchor="middle" fill="${nw ? '#9ca3af' : '#374151'}">${new Date(k * DAY).getUTCDate()}</text>`;
+    } else if (dow(k) === 1) {
+      hdr += `<line x1="${x}" y1="32" x2="${x}" y2="48" stroke="#cbd5e1"/><text x="${x + 2}" y="42" font-size="9" fill="#6b7280">${new Date(k * DAY).getUTCDate()}</text>`;
+    }
+  }
+  hdr += `<line x1="0" y1="48" x2="${W}" y2="48" stroke="#cbd5e1"/>`;
+  if (labW) hdr = `<rect x="0" y="0" width="${labW}" height="48" fill="#f8fafc" stroke="#e3e6ea"/><text x="6" y="30" font-size="11" font-weight="600" fill="#374151">WBS / Task</text>` + hdr;
+  // body: shading + grid
+  for (let k = startDn; k <= endDn; k++) {
+    if (!isWork(k)) body += `<rect x="${X(k)}" y="0" width="${dw}" height="${bodyH}" fill="${ctx.hol.has(k) ? '#fde8e8' : '#f3f4f6'}"/>`;
+    if (dow(k) === 1) body += `<line x1="${X(k)}" y1="0" x2="${X(k)}" y2="${bodyH}" stroke="#e8ebef"/>`;
+  }
+  for (let r = 0; r <= rows.length; r++) body += `<line x1="0" y1="${r * rowH}" x2="${W}" y2="${r * rowH}" stroke="#eceff3"/>`;
+  if (td >= startDn && td <= endDn) body += `<line x1="${X(td) + dw / 2}" y1="0" x2="${X(td) + dw / 2}" y2="${bodyH}" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  // bars
+  const rowIdx = {}; rows.forEach((u, i) => rowIdx[u] = i);
+  const ext = uid => {
+    const s = S[uid]; let l = X(s.start), r = X(s.end + 1);
+    if (!s.summary && s.effort <= 0) { l = X(s.start) + dw / 2 - 6; r = l + 12; }
+    return [l, r];
+  };
+  rows.forEach((uid, i) => {
+    const s = S[uid], y = i * rowH, [l, r] = ext(uid), err = s.err ? ' stroke="#dc2626" stroke-width="2"' : '';
+    if (labW) {
+      const t = s.t, nm = t.name.length > 34 ? t.name.slice(0, 33) + '…' : t.name;
+      body += `<text x="6" y="${y + 19}" font-size="10" fill="#6b7280">${esc(s.wbs)}</text><text x="${34 + t.level * 9}" y="${y + 19}" font-size="10" ${s.summary ? 'font-weight="700"' : ''} fill="#111827">${esc(nm)}</text>`;
+    }
+    if (s.summary) {
+      body += `<rect x="${l}" y="${y + 7}" width="${Math.max(r - l, 2)}" height="6" fill="#1f2937"${err}/>`;
+      body += `<polygon points="${l},${y + 13} ${l + 6},${y + 13} ${l},${y + 19}" fill="#1f2937"/><polygon points="${r},${y + 13} ${r - 6},${y + 13} ${r},${y + 19}" fill="#1f2937"/>`;
+    } else if (s.effort <= 0) {
+      const cx = (l + r) / 2, cy = y + 11;
+      body += `<polygon points="${cx},${cy - 7} ${cx + 7},${cy} ${cx},${cy + 7} ${cx - 7},${cy}" fill="#7c3aed"${err}/>`;
+    } else {
+      body += `<rect x="${l}" y="${y + 5}" width="${Math.max(r - l, 2)}" height="12" rx="3" fill="#3b82f6"${err}/>`;
+    }
+    if (s.as != null) {
+      const ae = s.ae != null ? s.ae : Math.max(s.as, Math.min(td, endDn));
+      const al = X(s.as), ar = X(ae + 1);
+      body += `<rect x="${al}" y="${y + 19}" width="${Math.max(ar - al, 2)}" height="6" rx="2" fill="${s.ae != null ? '#16a34a' : '#f59e0b'}"/>`;
+    }
+    if (dw >= 6) body += `<text x="${Math.max(r, X(s.ae != null ? s.ae + 1 : s.end + 1)) + 6}" y="${y + 15}" font-size="9" fill="#6b7280">${s.effort}d</text>`;
+  });
+  // dependency arrows
+  let arrows = `<defs><marker id="${mk}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>`;
+  rows.forEach((uid, i) => {
+    S[uid].t.preds.forEach(p => {
+      if (!(p.uid in rowIdx)) return;
+      const j = rowIdx[p.uid], [pl, pr] = ext(p.uid), [sl, sr] = ext(uid);
+      const y1 = j * rowH + 11, y2 = i * rowH + 11, mid = y1 + (y2 > y1 ? 1 : -1) * (rowH / 2);
+      let d;
+      if (p.type === 'FS') d = pr + 10 <= sl ? `M${pr} ${y1} H${pr + 6} V${y2} H${sl}` : `M${pr} ${y1} H${pr + 6} V${mid} H${sl - 8} V${y2} H${sl}`;
+      else if (p.type === 'SS') { const xm = Math.min(pl, sl) - 8; d = `M${pl} ${y1} H${xm} V${y2} H${sl}`; }
+      else if (p.type === 'FF') { const xm = Math.max(pr, sr) + 8; d = `M${pr} ${y1} H${xm} V${y2} H${sr}`; }
+      else d = `M${pl} ${y1} H${pl - 8} V${mid} H${sr + 8} V${y2} H${sr}`;
+      arrows += `<path d="${d}" fill="none" stroke="#64748b" stroke-width="1" marker-end="url(#${mk})"/>`;
+    });
+  });
+  body += arrows;
+  if (labW) body = `<rect x="0" y="0" width="${labW}" height="${bodyH}" fill="#fff"/>` + body.replace(/^/, '') + `<line x1="${labW}" y1="0" x2="${labW}" y2="${bodyH}" stroke="#cbd5e1"/>`;
+  return {hdr, body, W, H: hdrH + bodyH, bodyH, hdrH, startDn, dw, days};
+}
+function renderGantt(){
+  const g = buildGantt({rows: visibleUids()});
+  const ff = 'font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"';
+  $('#ghdr').innerHTML = `<svg width="${g.W}" height="${g.hdrH}" ${ff}>${g.hdr}</svg>`;
+  $('#gbody').innerHTML = `<svg width="${g.W}" height="${Math.max(g.bodyH, 1)}" ${ff}>${g.body}</svg>`;
+  $('#ginner').style.width = g.W + 'px';
+}
+
+// ---------- status bar / header ----------
+function renderStatus(){
+  const ss = P.tasks.map(t => S[t.uid]).filter(s => s.start != null);
+  let txt = `${P.tasks.length} task(s)`;
+  if (ss.length) {
+    const a = Math.min(...ss.map(s => s.start)), b = Math.max(...ss.map(s => s.end));
+    txt += ` · ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days`;
+  }
+  txt += ` · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s)`;
+  if (hasErrors()) txt += ' · ⚠ circular dependency detected';
+  $('#statusbar').textContent = txt;
+}
+function setHeader(){
+  $('#pname').value = P.name; $('#incW').checked = P.settings.includeWeekends; $('#pstart').value = P.settings.projectStart;
+  $('#btnHol').textContent = `Holidays (${P.holidays.length})`; $('#zoom').value = ui.zoom; updateDirty();
+}
+function renderAll(){ renderTable(); renderGantt(); renderStatus(); $('#btnHol').textContent = `Holidays (${P.holidays.length})`; }
+
+// ---------- modals ----------
+function closeModal(){ $('#modal-root').innerHTML = ''; }
+function openModal(title, html){
+  const root = $('#modal-root');
+  root.innerHTML = `<div class="ov"><div class="modal"><div class="mh"><b>${title}</b><button class="x" title="Close">✕</button></div><div class="mb">${html}</div></div></div>`;
+  root.querySelector('.x').onclick = closeModal;
+  root.querySelector('.ov').addEventListener('mousedown', e => { if (e.target.classList.contains('ov')) closeModal(); });
+  return root.querySelector('.mb');
+}
+function holidaysChanged(){ compute(); renderAll(); markDirty(); }
+function openHolidays(){
+  const mb = openModal('Holiday calendar', '');
+  const draw = () => {
+    const hs = [...P.holidays].sort((a, b) => a.date.localeCompare(b.date));
+    mb.innerHTML = `
+      <div class="hint">Holidays are non-working days: they are skipped in effort and timeline calculations (and shaded red on the Gantt).</div>
+      <div class="row"><input type="date" id="hDate"><input type="text" id="hName" placeholder="Holiday name (optional)" style="flex:1"><button id="hAdd" class="primary">Add</button></div>
+      <div class="row"><button id="hPreset">Add Singapore 2026 public holidays</button><span class="hint">Please verify against the MOM list.</span><button id="hClear" class="danger" style="margin-left:auto">Clear all</button></div>
+      <details class="row" style="display:block"><summary>Bulk paste (one per line: YYYY-MM-DD, name)</summary><textarea id="hBulk" placeholder="2026-12-24, Company shutdown"></textarea><button id="hBulkAdd">Add pasted</button></details>
+      <table><thead><tr><th>Date</th><th>Day</th><th>Name</th><th></th></tr></thead><tbody>${hs.map(h => `<tr><td>${esc(h.date)}</td><td>${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow(toDn(h.date))]}</td><td>${esc(h.name)}</td><td><button data-del="${esc(h.date)}" title="Remove">✕</button></td></tr>`).join('') || '<tr><td colspan="4" class="hint">No holidays yet</td></tr>'}</tbody></table>`;
+    const add = (date, name) => { if (toDn(date) == null) return false; if (!P.holidays.some(h => h.date === date)) P.holidays.push({date, name: name || ''}); return true; };
+    mb.querySelector('#hAdd').onclick = () => { const d = mb.querySelector('#hDate').value; if (!add(d, mb.querySelector('#hName').value.trim())) return toast('Pick a date'); holidaysChanged(); draw(); };
+    mb.querySelector('#hPreset').onclick = () => { SG_2026.forEach(([d, n]) => add(d, n)); holidaysChanged(); draw(); };
+    mb.querySelector('#hClear').onclick = () => { if (P.holidays.length && confirm('Remove all holidays?')) { P.holidays = []; holidaysChanged(); draw(); } };
+    mb.querySelector('#hBulkAdd').onclick = () => {
+      let bad = 0;
+      mb.querySelector('#hBulk').value.split('\n').forEach(line => { line = line.trim(); if (!line) return; const m = line.match(/^(\d{4}-\d{2}-\d{2})[\s,;]*(.*)$/); if (!m || !add(m[1], m[2].trim())) bad++; });
+      if (bad) toast(`${bad} line(s) could not be read`);
+      holidaysChanged(); draw();
+    };
+    mb.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { P.holidays = P.holidays.filter(h => h.date !== b.dataset.del); holidaysChanged(); draw(); });
+  };
+  draw();
+}
+function openLibrary(){
+  if (!confirmDiscard()) return;
+  const mb = openModal('Open project', '');
+  const draw = () => {
+    const lib = Object.values(lsGet(LIB_KEY, {})).sort((a, b) => b.updated - a.updated);
+    mb.innerHTML = `<div class="hint">Projects saved in this browser. Use Export JSON / Import JSON to move projects between machines.</div>
+    <table><thead><tr><th>Name</th><th>Tasks</th><th>Last saved</th><th></th></tr></thead><tbody>${lib.map(p => `<tr><td>${esc(p.name)}</td><td>${p.data.tasks.length}</td><td>${new Date(p.updated).toLocaleString()}</td><td style="white-space:nowrap"><button class="primary" data-open="${p.id}">Open</button> <button class="danger" data-rm="${p.id}">Delete</button></td></tr>`).join('') || '<tr><td colspan="4" class="hint">No saved projects yet. Use Save to create one.</td></tr>'}</tbody></table>`;
+    mb.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { const p = lsGet(LIB_KEY, {})[b.dataset.open]; if (p) { loadInto(p.data, p.id); closeModal(); } });
+    mb.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
+      const lib = lsGet(LIB_KEY, {}); const p = lib[b.dataset.rm];
+      if (p && confirm(`Delete saved project "${p.name}"?`)) { delete lib[b.dataset.rm]; lsSet(LIB_KEY, lib); if (ui.projectId === p.id) { ui.projectId = null; ui.dirty = true; updateDirty(); } draw(); }
+    });
+  };
+  draw();
+}
+function exportJson(){
+  const blob = new Blob([JSON.stringify({app: 'planner-lite', version: 1, project: P}, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = (P.name || 'project').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function importJson(file){
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const j = JSON.parse(r.result), p = j.project || j;
+      if (!p || !Array.isArray(p.tasks)) throw new Error('Not a project file');
+      if (!confirmDiscard()) return;
+      loadInto(p, null); ui.dirty = true; updateDirty(); toast(`Imported "${P.name}". Click Save to keep it in the library.`);
+    } catch (e) { toast('Could not import: ' + e.message); }
+  };
+  r.readAsText(file);
+}
+
+// ---------- PDF export (print to landscape) ----------
+function exportPdf(){
+  compute();
+  const uids = P.tasks.map(t => t.uid);
+  const g = buildGantt({rows: uids, labels: true, labW: 240, fitWidth: 1000});
+  const ff = 'font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${g.W} ${g.H}" preserveAspectRatio="xMidYMin meet" style="width:100%;height:auto;max-height:165mm" ${ff}>${g.hdr}<g transform="translate(0,${g.hdrH})">${g.body}</g></svg>`;
+  const ss = uids.map(u => S[u]).filter(s => s.start != null);
+  const a = Math.min(...ss.map(s => s.start)), b = Math.max(...ss.map(s => s.end));
+  const rows = uids.map(u => { const s = S[u];
+    return `<tr class="${s.summary ? 'sum' : ''}"><td>${esc(s.wbs)}</td><td style="padding-left:${4 + s.t.level * 12}px">${esc(s.t.name)}</td><td>${s.effort}</td><td>${fmtLong(s.start)}</td><td>${fmtLong(s.end)}</td><td>${fmtLong(s.as)}</td><td>${fmtLong(s.ae)}</td><td>${esc(predText(s.t))}</td><td>${esc(statusText(s))}</td></tr>`; }).join('');
+  $('#printArea').innerHTML = `
+    <div class="p-head"><h1>${esc(P.name)}</h1><div class="meta">Timeline ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s) · printed ${fmtLong(todayDn())}</div></div>
+    <table class="p-table"><thead><tr><th>WBS</th><th>Task</th><th>Effort (d)</th><th>Planned start</th><th>Planned end</th><th>Actual start</th><th>Actual end</th><th>Predecessors</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="p-gantt"><h2>${esc(P.name)} — Gantt chart</h2>${svg}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual (amber = in progress) · Purple diamond = milestone · Red dashed line = today · Shaded = non-working days</div></div>`;
+  const oldTitle = document.title; document.title = P.name || 'Project';
+  setTimeout(() => { window.print(); document.title = oldTitle; }, 80);
+}
+window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; });
+
+// ---------- wiring ----------
+function init(){
+  buildHead();
+  const body = $('#gridBody');
+  body.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.f) handleEdit(e.target); });
+  body.addEventListener('focusin', e => { const tr = e.target.closest('tr'); if (tr) select(+tr.dataset.uid); });
+  body.addEventListener('click', e => {
+    const tr = e.target.closest('tr'); if (tr) select(+tr.dataset.uid);
+    const tg = e.target.closest('.tog');
+    if (tg && tg.dataset.uid) { const t = P.tasks[idxOf(+tg.dataset.uid)]; t.collapsed = !t.collapsed; renderAll(); markDirty(); }
+  });
+  body.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.target.blur(); });
+  // sync vertical scroll
+  const L = $('#lpane'), R = $('#rpane'); let lock = false;
+  L.addEventListener('scroll', () => { if (lock) return; lock = true; R.scrollTop = L.scrollTop; lock = false; });
+  R.addEventListener('scroll', () => { if (lock) return; lock = true; L.scrollTop = R.scrollTop; lock = false; });
+  // divider
+  const dv = $('#divider');
+  dv.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const mv = ev => { const r = $('#split').getBoundingClientRect(); L.style.width = clamp(ev.clientX - r.left, 260, r.width - 220) + 'px'; };
+    const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); };
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+  });
+  // header controls
+  $('#pname').onchange = e => { P.name = e.target.value.trim() || 'Untitled project'; markDirty(); };
+  $('#incW').onchange = e => { P.settings.includeWeekends = e.target.checked; compute(); renderAll(); markDirty(); };
+  $('#pstart').onchange = e => { if (!toDn(e.target.value)) { e.target.value = P.settings.projectStart; return; } P.settings.projectStart = e.target.value; compute(); renderAll(); markDirty(); };
+  $('#zoom').oninput = e => { ui.zoom = +e.target.value; renderGantt(); };
+  $('#btnHol').onclick = openHolidays;
+  $('#btnPdf').onclick = exportPdf;
+  $('#btnSave').onclick = () => saveProject(false);
+  $('#btnSaveAs').onclick = () => saveProject(true);
+  $('#btnOpen').onclick = openLibrary;
+  $('#btnNew').onclick = () => { if (!confirmDiscard()) return; P = blankProject(); P.tasks.push(mkTask('New task', 0, 1)); ui.projectId = null; ui.dirty = false; selected = null; normalize(); compute(); setHeader(); renderAll(); persistWorking(); };
+  $('#btnExport').onclick = exportJson;
+  $('#btnImport').onclick = () => $('#fileIn').click();
+  $('#fileIn').onchange = e => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = ''; };
+  $('#tAdd').onclick = () => addTask(false);
+  $('#tSub').onclick = () => addTask(true);
+  $('#tIn').onclick = indent; $('#tOut').onclick = outdent;
+  $('#tUp').onclick = () => move(-1); $('#tDown').onclick = () => move(1);
+  $('#tDel').onclick = deleteTask;
+  $('#tExp').onclick = () => setAllCollapsed(false); $('#tCol').onclick = () => setAllCollapsed(true);
+  window.addEventListener('beforeunload', e => { if (ui.dirty) { persistWorking(); } });
+
+  const w = lsGet(WORK_KEY, null);
+  if (w && w.P && Array.isArray(w.P.tasks)) { P = w.P; ui.projectId = w.projectId || null; ui.dirty = !!w.dirty; normalize(); compute(); }
+  else { sampleProject(); normalize(); compute(); ui.dirty = false; }
+  setHeader(); renderAll();
+}
+init();
+</script>
+</body>
+</html>

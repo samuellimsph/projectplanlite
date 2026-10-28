@@ -74,6 +74,8 @@ table#grid{border-collapse:separate;border-spacing:0;table-layout:fixed}
 #toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);background:#111827;color:#fff;padding:9px 16px;border-radius:8px;z-index:99;opacity:0;pointer-events:none;transition:opacity .2s;max-width:80vw}
 #toast.show{opacity:1}
 #printArea{display:none}
+#colMenu{background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:8px 10px;min-width:170px}
+#colMenu label{padding:3px 0}
 @page{size:A4 landscape;margin:10mm}
 @media print{
   html,body{height:auto;background:#fff}
@@ -127,6 +129,8 @@ table#grid{border-collapse:separate;border-spacing:0;table-layout:fixed}
     <button id="tDel" class="danger">Delete</button>
     <span class="sep"></span>
     <button id="tExp">Expand all</button>
+    <span class="sep"></span>
+    <button id="tCols">Columns ▾</button>
     <button id="tCol">Collapse all</button>
     <span style="margin-left:auto;color:var(--muted);font-size:12px">Predecessors: WBS codes, e.g. <b>1.2</b>, <b>2.1SS+2d</b>, <b>3FF-1d</b> (types FS, SS, FF, SF)</span>
   </div>
@@ -137,6 +141,7 @@ table#grid{border-collapse:separate;border-spacing:0;table-layout:fixed}
   </main>
   <div id="statusbar"></div>
 </div>
+<datalist id="assigneeList"></datalist>
 <div id="printArea"></div>
 <div id="modal-root"></div>
 <div id="toast"></div>
@@ -267,7 +272,7 @@ function blankProject(name){
   return {name: name || 'Untitled project', settings: {includeWeekends: false, projectStart: fromDn(todayDn())}, holidays: [], tasks: [], nextUid: 1};
 }
 function mkTask(name, level, effort){
-  return {uid: P.nextUid++, name, level, effort, startNoEarlier: '', actualStart: '', actualEnd: '', preds: [], collapsed: false};
+  return {uid: P.nextUid++, name, level, effort, assignee: '', startNoEarlier: '', actualStart: '', actualEnd: '', preds: [], collapsed: false};
 }
 function sampleProject(){
   P = blankProject('Sample project');
@@ -281,11 +286,14 @@ function sampleProject(){
   spec.forEach(([n, l, e]) => P.tasks.push(mkTask(n, l, e)));
   spec.forEach((sp, i) => { if (sp[3]) P.tasks[i].preds = sp[3].map(([idx, type, lag]) => ({uid: P.tasks[idx].uid, type, lag})); });
   compute();
+  ['','Alex','Priya','Priya','','Ben','Ben','Alex','','Priya','Alex','','Ben',''].forEach((a, i) => { P.tasks[i].assignee = a; });
   const kick = P.tasks[1]; kick.actualStart = fromDn(S[kick.uid].start); kick.actualEnd = fromDn(S[kick.uid].start);
   const req = P.tasks[2]; req.actualStart = fromDn(S[req.uid].start);
 }
 function normalize(){
-  P.settings = Object.assign({includeWeekends: false, projectStart: fromDn(todayDn())}, P.settings || {});
+  P.settings = Object.assign({includeWeekends: false, projectStart: fromDn(todayDn()), hiddenCols: []}, P.settings || {});
+  if (!Array.isArray(P.settings.hiddenCols)) P.settings.hiddenCols = [];
+  P.settings.hiddenCols = P.settings.hiddenCols.filter(k => k !== 'name');
   if (!toDn(P.settings.projectStart)) P.settings.projectStart = fromDn(todayDn());
   P.holidays = (P.holidays || []).filter(h => toDn(h.date) != null).map(h => {
     const o = {date: h.date, name: h.name || ''};
@@ -295,7 +303,7 @@ function normalize(){
   let mx = 0;
   P.tasks = (P.tasks || []).map(t => {
     mx = Math.max(mx, +t.uid || 0);
-    return Object.assign({name: '', level: 0, effort: 1, startNoEarlier: '', actualStart: '', actualEnd: '', preds: [], collapsed: false}, t);
+    return Object.assign({name: '', level: 0, effort: 1, assignee: '', startNoEarlier: '', actualStart: '', actualEnd: '', preds: [], collapsed: false}, t);
   });
   P.nextUid = Math.max(P.nextUid || 1, mx + 1);
   const ids = new Set(P.tasks.map(t => t.uid));
@@ -333,11 +341,36 @@ function loadInto(data, projectId){
 function confirmDiscard(){ return !ui.dirty || confirm('You have unsaved changes. Discard them?'); }
 
 // ---------- table ----------
-const COLS = [['wbs','WBS',56],['name','Task name',260],['effort','Effort (d)',72],['start','Planned start',128],['end','Planned end',122],['as','Actual start',122],['ae','Actual end',122],['preds','Predecessors',120],['status','Status',150]];
+const COLS = [['wbs','WBS',56],['name','Task name',260],['assignee','Assignee',130],['effort','Effort (d)',72],['start','Planned start',128],['end','Planned end',122],['as','Actual start',122],['ae','Actual end',122],['preds','Predecessors',120],['status','Status',150]];
+const COL_LABEL = {wbs:'WBS', name:'Task name', assignee:'Assignee', effort:'Effort (days)', start:'Planned start', end:'Planned end', as:'Actual start', ae:'Actual end', preds:'Predecessors', status:'Status'};
+const isHidden = k => P.settings.hiddenCols.includes(k);
+const visCols = () => COLS.filter(c => !isHidden(c[0]));
 function buildHead(){
-  $('#cg').innerHTML = COLS.map(c => `<col style="width:${c[2]}px">`).join('');
-  $('#thr').innerHTML = COLS.map(c => `<th title="${c[0]==='effort'?'Working days of effort':''}">${c[1]}</th>`).join('');
-  $('#grid').style.width = COLS.reduce((a, c) => a + c[2], 0) + 'px';
+  const cols = visCols();
+  $('#cg').innerHTML = cols.map(c => `<col style="width:${c[2]}px">`).join('');
+  $('#thr').innerHTML = cols.map(c => `<th title="${c[0]==='effort'?'Working days of effort':''}">${c[1]}</th>`).join('');
+  $('#grid').style.width = cols.reduce((a, c) => a + c[2], 0) + 'px';
+}
+function toggleCol(k, show){
+  const h = P.settings.hiddenCols.filter(x => x !== k);
+  if (!show) h.push(k);
+  P.settings.hiddenCols = h;
+  buildHead(); renderTable(); markDirty();
+}
+function openColMenu(btn){
+  const old = $('#colMenu'); if (old) { old.remove(); return; }
+  const m = document.createElement('div'); m.id = 'colMenu';
+  const r = btn.getBoundingClientRect();
+  m.style.cssText = `position:fixed;left:${r.left}px;top:${r.bottom + 4}px;z-index:40`;
+  m.innerHTML = COLS.map(c => `<label><input type="checkbox" data-col="${c[0]}" ${isHidden(c[0]) ? '' : 'checked'} ${c[0] === 'name' ? 'disabled' : ''}> ${COL_LABEL[c[0]]}</label>`).join('') +
+    '<button id="colAll" style="margin-top:6px;width:100%">Show all</button>';
+  document.body.appendChild(m);
+  m.addEventListener('change', e => { if (e.target.dataset.col) toggleCol(e.target.dataset.col, e.target.checked); });
+  m.querySelector('#colAll').onclick = () => { P.settings.hiddenCols = []; buildHead(); renderTable(); markDirty(); m.querySelectorAll('input').forEach(i => i.checked = true); };
+  setTimeout(() => {
+    const away = ev => { if (!m.contains(ev.target) && ev.target !== btn) { m.remove(); document.removeEventListener('mousedown', away); } };
+    document.addEventListener('mousedown', away);
+  }, 0);
 }
 function visibleUids(){
   const out = []; let hide = null;
@@ -362,6 +395,7 @@ function statusText(s){
   if (s.as != null) return 'In progress' + (td > s.end ? ' · overdue' : '');
   return td > s.end && !s.summary ? 'Not started · overdue' : 'Not started';
 }
+function descendantAssignees(s){ let out = []; for (const c of s.children) { const cs = S[c]; if (cs.summary) out = out.concat(descendantAssignees(cs)); else if (cs.t.assignee) out.push(cs.t.assignee); } return out; }
 function valueFor(s, f){
   switch (f) {
     case 'wbs': return s.wbs;
@@ -372,6 +406,7 @@ function valueFor(s, f){
     case 'as': return s.as != null ? fromDn(s.as) : '';
     case 'ae': return s.ae != null ? fromDn(s.ae) : '';
     case 'preds': return predText(s.t);
+    case 'assignee': return s.summary ? [...new Set(descendantAssignees(s))].join(', ') : (s.t.assignee || '');
     case 'status': return statusText(s);
   }
   return '';
@@ -381,22 +416,26 @@ function rowHTML(uid){
   const ro = f => `<span class="ro" data-uid="${uid}" data-f="${f}"></span>`;
   const inp = (f, type, extra = '') => `<input type="${type}" data-uid="${uid}" data-f="${f}" ${extra}>`;
   const tog = sum ? `<span class="tog" data-uid="${uid}">${t.collapsed ? '▸' : '▾'}</span>` : '<span class="tog sp"></span>';
-  return `<tr data-uid="${uid}" class="${sum ? 'sum' : ''}${uid === selected ? ' sel' : ''}">
-    <td class="c-wbs">${ro('wbs')}</td>
-    <td class="c-name" style="padding-left:${4 + t.level * 16}px">${tog}${inp('name','text')}<span class="warn" data-uid="${uid}" data-f="err">⚠</span></td>
-    <td>${sum ? ro('effort') : inp('effort','number','min="0" step="1" title="Effort in working days (0 = milestone)"')}</td>
-    <td>${sum ? ro('start') : `<div class="c-start">${inp('start','date')}<span class="pin" data-uid="${uid}" data-f="pin" title="Start-no-earlier-than constraint set. Clear the date to remove it.">📌</span></div>`}</td>
-    <td>${sum ? ro('end') : inp('end','date')}</td>
-    <td>${sum ? ro('as') : inp('as','date')}</td>
-    <td>${sum ? ro('ae') : inp('ae','date')}</td>
-    <td>${sum ? ro('preds') : inp('preds','text','placeholder="e.g. 1.2, 2SS+1d"')}</td>
-    <td><span class="status" data-uid="${uid}" data-f="status"></span></td>
-  </tr>`;
+  const cell = {
+    wbs: `<td class="c-wbs">${ro('wbs')}</td>`,
+    name: `<td class="c-name" style="padding-left:${4 + t.level * 16}px">${tog}${inp('name','text')}<span class="warn" data-uid="${uid}" data-f="err">⚠</span></td>`,
+    assignee: `<td>${sum ? ro('assignee') : inp('assignee','text','list="assigneeList" placeholder="Unassigned"')}</td>`,
+    effort: `<td>${sum ? ro('effort') : inp('effort','number','min="0" step="1" title="Effort in working days (0 = milestone)"')}</td>`,
+    start: `<td>${sum ? ro('start') : `<div class="c-start">${inp('start','date')}<span class="pin" data-uid="${uid}" data-f="pin" title="Start-no-earlier-than constraint set. Clear the date to remove it.">📌</span></div>`}</td>`,
+    end: `<td>${sum ? ro('end') : inp('end','date')}</td>`,
+    as: `<td>${sum ? ro('as') : inp('as','date')}</td>`,
+    ae: `<td>${sum ? ro('ae') : inp('ae','date')}</td>`,
+    preds: `<td>${sum ? ro('preds') : inp('preds','text','placeholder="e.g. 1.2, 2SS+1d"')}</td>`,
+    status: `<td><span class="status" data-uid="${uid}" data-f="status"></span></td>`
+  };
+  return `<tr data-uid="${uid}" class="${sum ? 'sum' : ''}${uid === selected ? ' sel' : ''}">${visCols().map(c => cell[c[0]]).join('')}</tr>`;
 }
 function renderTable(){
+  $('#assigneeList').innerHTML = [...new Set(P.tasks.map(t => (t.assignee || '').trim()).filter(Boolean))].sort().map(a => `<option value="${esc(a)}">`).join('');
   $('#gridBody').innerHTML = visibleUids().map(rowHTML).join('');
   refreshValues(true);
 }
+function refreshAssigneeList(){ $('#assigneeList').innerHTML = [...new Set(P.tasks.map(t => (t.assignee || '').trim()).filter(Boolean))].sort().map(a => `<option value="${esc(a)}">`).join(''); }
 function refreshValues(force){
   const act = force ? null : document.activeElement;
   $('#gridBody').querySelectorAll('[data-f]').forEach(el => {
@@ -430,6 +469,7 @@ function handleEdit(el){
   try {
     switch (f) {
       case 'name': t.name = v; break;
+      case 'assignee': t.assignee = v.trim(); break;
       case 'effort': t.effort = Math.max(0, Math.round(+v || 0)); break;
       case 'start':
         if (v === fromDn(s.start) && !t.startNoEarlier) return;
@@ -459,7 +499,7 @@ function handleEdit(el){
   afterEdit();
   el.value = valueFor(S[uid], f);
 }
-function afterEdit(){ compute(); refreshValues(); renderGantt(); renderStatus(); markDirty(); }
+function afterEdit(){ compute(); refreshAssigneeList(); refreshValues(); renderGantt(); renderStatus(); markDirty(); }
 
 // ---------- structure operations ----------
 const idxOf = uid => P.tasks.findIndex(t => t.uid === uid);
@@ -635,6 +675,7 @@ function renderStatus(){
   $('#statusbar').textContent = txt;
 }
 function setHeader(){
+  buildHead();
   $('#pname').value = P.name; $('#incW').checked = P.settings.includeWeekends; $('#pstart').value = P.settings.projectStart;
   $('#btnHol').textContent = `Holidays (${P.holidays.length})`; $('#zoom').value = ui.zoom; updateDirty();
 }
@@ -728,11 +769,26 @@ function exportPdf(){
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${g.W} ${g.H}" preserveAspectRatio="xMidYMin meet" style="width:100%;height:auto;max-height:165mm" ${ff}>${g.hdr}<g transform="translate(0,${g.hdrH})">${g.body}</g></svg>`;
   const ss = uids.map(u => S[u]).filter(s => s.start != null);
   const a = Math.min(...ss.map(s => s.start)), b = Math.max(...ss.map(s => s.end));
-  const rows = uids.map(u => { const s = S[u];
-    return `<tr class="${s.summary ? 'sum' : ''}"><td>${esc(s.wbs)}</td><td style="padding-left:${4 + s.t.level * 12}px">${esc(s.t.name)}</td><td>${s.effort}</td><td>${fmtLong(s.start)}</td><td>${fmtLong(s.end)}</td><td>${fmtLong(s.as)}</td><td>${fmtLong(s.ae)}</td><td>${esc(predText(s.t))}</td><td>${esc(statusText(s))}</td></tr>`; }).join('');
+  const pc = visCols();
+  const pcell = (s, k) => {
+    switch (k) {
+      case 'wbs': return `<td>${esc(s.wbs)}</td>`;
+      case 'name': return `<td style="padding-left:${4 + s.t.level * 12}px">${esc(s.t.name)}</td>`;
+      case 'assignee': return `<td>${esc(valueFor(s, 'assignee'))}</td>`;
+      case 'effort': return `<td>${s.effort}</td>`;
+      case 'start': return `<td>${fmtLong(s.start)}</td>`;
+      case 'end': return `<td>${fmtLong(s.end)}</td>`;
+      case 'as': return `<td>${fmtLong(s.as)}</td>`;
+      case 'ae': return `<td>${fmtLong(s.ae)}</td>`;
+      case 'preds': return `<td>${esc(predText(s.t))}</td>`;
+      case 'status': return `<td>${esc(statusText(s))}</td>`;
+    }
+    return '';
+  };
+  const rows = uids.map(u => { const s = S[u]; return `<tr class="${s.summary ? 'sum' : ''}">${pc.map(c => pcell(s, c[0])).join('')}</tr>`; }).join('');
   $('#printArea').innerHTML = `
     <div class="p-head"><h1>${esc(P.name)}</h1><div class="meta">Timeline ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s) · printed ${fmtLong(todayDn())}</div></div>
-    <table class="p-table"><thead><tr><th>WBS</th><th>Task</th><th>Effort (d)</th><th>Planned start</th><th>Planned end</th><th>Actual start</th><th>Actual end</th><th>Predecessors</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+    <table class="p-table"><thead><tr>${pc.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
     <div class="p-gantt"><h2>${esc(P.name)} — Gantt chart</h2>${svg}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual (amber = in progress) · Purple diamond = milestone · Red dashed line = today · Shaded = non-working days</div></div>`;
   const oldTitle = document.title; document.title = P.name || 'Project';
   setTimeout(() => { window.print(); document.title = oldTitle; }, 80);
@@ -741,7 +797,6 @@ window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; })
 
 // ---------- wiring ----------
 function init(){
-  buildHead();
   const body = $('#gridBody');
   body.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.f) handleEdit(e.target); });
   body.addEventListener('focusin', e => { const tr = e.target.closest('tr'); if (tr) select(+tr.dataset.uid); });
@@ -782,6 +837,7 @@ function init(){
   $('#tIn').onclick = indent; $('#tOut').onclick = outdent;
   $('#tUp').onclick = () => move(-1); $('#tDown').onclick = () => move(1);
   $('#tDel').onclick = deleteTask;
+  $('#tCols').onclick = e => openColMenu(e.currentTarget);
   $('#tExp').onclick = () => setAllCollapsed(false); $('#tCol').onclick = () => setAllCollapsed(true);
   window.addEventListener('beforeunload', e => { if (ui.dirty) { persistWorking(); } });
 

@@ -155,7 +155,12 @@ let ctx = {hol: new Set(), inc: false};
 let S = {};            // computed schedule keyed by task uid
 
 function buildCal(){
-  ctx.hol = new Set(P.holidays.map(h => toDn(h.date)).filter(x => x != null));
+  ctx.hol = new Set();
+  for (const h of P.holidays) {
+    const a = toDn(h.date); if (a == null) continue;
+    let b = h.end ? toDn(h.end) : a; if (b == null || b < a) b = a;
+    for (let d = a; d <= b && d - a < 3660; d++) ctx.hol.add(d);
+  }
   ctx.inc = !!P.settings.includeWeekends;
 }
 function isWork(dn){
@@ -282,7 +287,11 @@ function sampleProject(){
 function normalize(){
   P.settings = Object.assign({includeWeekends: false, projectStart: fromDn(todayDn())}, P.settings || {});
   if (!toDn(P.settings.projectStart)) P.settings.projectStart = fromDn(todayDn());
-  P.holidays = (P.holidays || []).filter(h => toDn(h.date) != null);
+  P.holidays = (P.holidays || []).filter(h => toDn(h.date) != null).map(h => {
+    const o = {date: h.date, name: h.name || ''};
+    if (h.end && toDn(h.end) != null && toDn(h.end) > toDn(h.date)) o.end = h.end;
+    return o;
+  });
   let mx = 0;
   P.tasks = (P.tasks || []).map(t => {
     mx = Math.max(mx, +t.uid || 0);
@@ -646,22 +655,33 @@ function openHolidays(){
   const draw = () => {
     const hs = [...P.holidays].sort((a, b) => a.date.localeCompare(b.date));
     mb.innerHTML = `
-      <div class="hint">Holidays are non-working days: they are skipped in effort and timeline calculations (and shaded red on the Gantt).</div>
-      <div class="row"><input type="date" id="hDate"><input type="text" id="hName" placeholder="Holiday name (optional)" style="flex:1"><button id="hAdd" class="primary">Add</button></div>
+      <div class="hint">Holidays and leave are non-working days: they are skipped in effort and timeline calculations (and shaded red on the Gantt). Leave the end date empty for a single day, or set it for a range such as long leave. Entries apply to the whole project.</div>
+      <div class="row"><label>From <input type="date" id="hDate"></label><label>To <input type="date" id="hEnd"></label><input type="text" id="hName" placeholder="Name, e.g. Annual leave (optional)" style="flex:1;min-width:160px"><button id="hAdd" class="primary">Add</button></div>
       <div class="row"><button id="hPreset">Add Singapore 2026 public holidays</button><span class="hint">Please verify against the MOM list.</span><button id="hClear" class="danger" style="margin-left:auto">Clear all</button></div>
-      <details class="row" style="display:block"><summary>Bulk paste (one per line: YYYY-MM-DD, name)</summary><textarea id="hBulk" placeholder="2026-12-24, Company shutdown"></textarea><button id="hBulkAdd">Add pasted</button></details>
-      <table><thead><tr><th>Date</th><th>Day</th><th>Name</th><th></th></tr></thead><tbody>${hs.map(h => `<tr><td>${esc(h.date)}</td><td>${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow(toDn(h.date))]}</td><td>${esc(h.name)}</td><td><button data-del="${esc(h.date)}" title="Remove">✕</button></td></tr>`).join('') || '<tr><td colspan="4" class="hint">No holidays yet</td></tr>'}</tbody></table>`;
-    const add = (date, name) => { if (toDn(date) == null) return false; if (!P.holidays.some(h => h.date === date)) P.holidays.push({date, name: name || ''}); return true; };
-    mb.querySelector('#hAdd').onclick = () => { const d = mb.querySelector('#hDate').value; if (!add(d, mb.querySelector('#hName').value.trim())) return toast('Pick a date'); holidaysChanged(); draw(); };
+      <details class="row" style="display:block"><summary>Bulk paste (one per line)</summary><div class="hint" style="margin:6px 0">Single day: <code>2026-12-24, Company shutdown</code><br>Range: <code>2026-12-21 to 2026-12-31, Annual leave</code> (also accepts <code>2026-12-21, 2026-12-31, Annual leave</code>)</div><textarea id="hBulk" placeholder="2026-12-24, Company shutdown&#10;2026-12-21 to 2026-12-31, Annual leave"></textarea><button id="hBulkAdd">Add pasted</button></details>
+      <table><thead><tr><th>From</th><th>To</th><th>Days</th><th>Name</th><th></th></tr></thead><tbody>${hs.map(h => { const a = toDn(h.date), e = h.end ? toDn(h.end) : a; return `<tr><td>${esc(h.date)} <span class="hint">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow(a)]}</span></td><td>${h.end ? esc(h.end) + ' <span class="hint">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow(e)] + '</span>' : '—'}</td><td>${e - a + 1}</td><td>${esc(h.name)}</td><td><button data-del="${esc(h.date)}|${esc(h.end || '')}" title="Remove">✕</button></td></tr>`; }).join('') || '<tr><td colspan="5" class="hint">No holidays yet</td></tr>'}</tbody></table>`;
+    const add = (date, name, end) => {
+      if (toDn(date) == null) return false;
+      if (end) { if (toDn(end) == null || toDn(end) < toDn(date)) return false; if (end === date) end = ''; }
+      end = end || '';
+      if (!P.holidays.some(h => h.date === date && (h.end || '') === end)) { const o = {date, name: name || ''}; if (end) o.end = end; P.holidays.push(o); }
+      return true;
+    };
+    mb.querySelector('#hAdd').onclick = () => {
+      const d = mb.querySelector('#hDate').value, e = mb.querySelector('#hEnd').value;
+      if (!d) return toast('Pick a start date');
+      if (e && e < d) return toast('End date is before start date');
+      add(d, mb.querySelector('#hName').value.trim(), e); holidaysChanged(); draw();
+    };
     mb.querySelector('#hPreset').onclick = () => { SG_2026.forEach(([d, n]) => add(d, n)); holidaysChanged(); draw(); };
     mb.querySelector('#hClear').onclick = () => { if (P.holidays.length && confirm('Remove all holidays?')) { P.holidays = []; holidaysChanged(); draw(); } };
     mb.querySelector('#hBulkAdd').onclick = () => {
       let bad = 0;
-      mb.querySelector('#hBulk').value.split('\n').forEach(line => { line = line.trim(); if (!line) return; const m = line.match(/^(\d{4}-\d{2}-\d{2})[\s,;]*(.*)$/); if (!m || !add(m[1], m[2].trim())) bad++; });
+      mb.querySelector('#hBulk').value.split('\n').forEach(line => { line = line.trim(); if (!line) return; const m = line.match(/^(\d{4}-\d{2}-\d{2})(?:\s*(?:to|-|–|,|;)\s*(\d{4}-\d{2}-\d{2}))?[\s,;]*(.*)$/i); if (!m || !add(m[1], m[3].trim(), m[2] || '')) bad++; });
       if (bad) toast(`${bad} line(s) could not be read`);
       holidaysChanged(); draw();
     };
-    mb.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { P.holidays = P.holidays.filter(h => h.date !== b.dataset.del); holidaysChanged(); draw(); });
+    mb.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const [d, e] = b.dataset.del.split('|'); P.holidays = P.holidays.filter(h => !(h.date === d && (h.end || '') === e)); holidaysChanged(); draw(); });
   };
   draw();
 }

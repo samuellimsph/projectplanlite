@@ -891,14 +891,21 @@ function openModal(title, html){
 function holidaysChanged(){ compute(); renderAll(); markDirty(); }
 function openHolidays(){
   const mb = openModal('Holiday calendar', '');
+  mb.parentElement.style.width = '780px';
+  let editing = null;
+  const DN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const draw = () => {
     const hs = [...P.holidays].sort((a, b) => a.date.localeCompare(b.date));
     mb.innerHTML = `
-      <div class="hint">Holidays and leave are non-working days: they are skipped in effort and timeline calculations (and shaded red on the Gantt). Leave the end date empty for a single day, or set it for a range such as long leave. Entries apply to everyone by default. Set <b>Applies to</b> to a person (as typed in the Assignee column) for personal leave: it will not move the schedule, but the <b>Resource Report</b> will flag that person's tasks that fall on it.</div>
+      <div class="hint">Holidays and leave are non-working days: they are skipped in effort and timeline calculations (and shaded red on the Gantt). Leave the end date empty for a single day, or set it for a range such as long leave. Entries apply to everyone by default. Click <b>Edit</b> (or double-click a row) to change an entry. Set <b>Applies to</b> to a person (as typed in the Assignee column) for personal leave: it will not move the schedule, but the <b>Resource Report</b> will flag that person's tasks that fall on it.</div>
       <div class="row"><label>From <input type="date" id="hDate"></label><label>To <input type="date" id="hEnd"></label><input type="text" id="hName" placeholder="Name, e.g. Annual leave (optional)" style="flex:1;min-width:140px"><label>Applies to <input type="text" id="hWho" list="assigneeList" placeholder="Everyone" style="width:120px"></label><button id="hAdd" class="primary">Add</button></div>
       <div class="row"><button id="hPreset">Add Singapore 2026 public holidays</button><span class="hint">Please verify against the MOM list.</span><button id="hClear" class="danger" style="margin-left:auto">Clear all</button></div>
       <details class="row" style="display:block"><summary>Bulk paste (one per line)</summary><div class="hint" style="margin:6px 0">Single day: <code>2026-12-24, Company shutdown</code><br>Range: <code>2026-12-21 to 2026-12-31, Annual leave</code> (also accepts <code>2026-12-21, 2026-12-31, Annual leave</code>)<br>Personal leave: add <code>@Name</code> at the end, e.g. <code>2026-12-21 to 2026-12-31, Annual leave @Priya</code></div><textarea id="hBulk" placeholder="2026-12-24, Company shutdown&#10;2026-12-21 to 2026-12-31, Annual leave"></textarea><button id="hBulkAdd">Add pasted</button></details>
-      <table><thead><tr><th>From</th><th>To</th><th>Days</th><th>Name</th><th>Applies to</th><th></th></tr></thead><tbody>${hs.map(h => { const a = toDn(h.date), e = h.end ? toDn(h.end) : a; return `<tr><td>${esc(h.date)} <span class="hint">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow(a)]}</span></td><td>${h.end ? esc(h.end) + ' <span class="hint">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow(e)] + '</span>' : '—'}</td><td>${e - a + 1}</td><td>${esc(h.name)}</td><td>${h.who ? esc(h.who) : '<span class="hint">Everyone</span>'}</td><td><button data-del="${esc(h.date)}|${esc(h.end || '')}|${esc(h.who || '')}" title="Remove">✕</button></td></tr>`; }).join('') || '<tr><td colspan="6" class="hint">No holidays yet</td></tr>'}</tbody></table>`;
+      <table><thead><tr><th>From</th><th>To</th><th>Days</th><th>Name</th><th>Applies to</th><th></th></tr></thead><tbody>${hs.map(h => {
+        if (h === editing) return `<tr class="editing"><td><input type="date" id="eDate" value="${esc(h.date)}"></td><td><input type="date" id="eEnd" value="${esc(h.end || '')}"></td><td class="hint">—</td><td><input type="text" id="eName" value="${esc(h.name)}" style="width:100%;min-width:110px"></td><td><input type="text" id="eWho" list="assigneeList" value="${esc(h.who || '')}" placeholder="Everyone" style="width:100%;min-width:90px"></td><td style="white-space:nowrap"><button id="eSave" class="primary">Save</button> <button id="eCancel">Cancel</button></td></tr>`;
+        const a = toDn(h.date), e = h.end ? toDn(h.end) : a;
+        return `<tr data-row="${P.holidays.indexOf(h)}"><td>${esc(h.date)} <span class="hint">${DN[dow(a)]}</span></td><td>${h.end ? esc(h.end) + ' <span class="hint">' + DN[dow(e)] + '</span>' : '—'}</td><td>${e - a + 1}</td><td>${esc(h.name)}</td><td>${h.who ? esc(h.who) : '<span class="hint">Everyone</span>'}</td><td style="white-space:nowrap"><button data-edit="${P.holidays.indexOf(h)}" title="Edit">Edit</button> <button data-del="${esc(h.date)}|${esc(h.end || '')}|${esc(h.who || '')}" title="Remove">✕</button></td></tr>`;
+      }).join('') || '<tr><td colspan="6" class="hint">No holidays yet</td></tr>'}</tbody></table>`;
     const add = (date, name, end, who) => {
       if (toDn(date) == null) return false;
       if (end) { if (toDn(end) == null || toDn(end) < toDn(date)) return false; if (end === date) end = ''; }
@@ -920,7 +927,25 @@ function openHolidays(){
       if (bad) toast(`${bad} line(s) could not be read`);
       holidaysChanged(); draw();
     };
-    mb.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const [d, e, w] = b.dataset.del.split('|'); P.holidays = P.holidays.filter(h => !(h.date === d && (h.end || '') === e && (h.who || '') === (w || ''))); holidaysChanged(); draw(); });
+    mb.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { editing = P.holidays[+b.dataset.edit]; draw(); const f = mb.querySelector('#eName'); if (f) f.focus(); });
+    mb.querySelectorAll('tr[data-row]').forEach(tr => tr.ondblclick = ev => { if (ev.target.closest('button')) return; editing = P.holidays[+tr.dataset.row]; draw(); });
+    if (editing) {
+      const cancel = () => { editing = null; draw(); };
+      const save = () => {
+        const d = mb.querySelector('#eDate').value, e = mb.querySelector('#eEnd').value, nm = mb.querySelector('#eName').value.trim(), who = mb.querySelector('#eWho').value.trim().replace(/\|/g, '');
+        if (!d) return toast('Start date is required');
+        if (e && e < d) return toast('End date is before start date');
+        const end = (e && e !== d) ? e : '';
+        if (P.holidays.some(h => h !== editing && h.date === d && (h.end || '') === end && (h.who || '') === who)) return toast('An identical entry already exists');
+        editing.date = d; editing.name = nm;
+        if (end) editing.end = end; else delete editing.end;
+        if (who) editing.who = who; else delete editing.who;
+        editing = null; holidaysChanged(); draw();
+      };
+      mb.querySelector('#eSave').onclick = save; mb.querySelector('#eCancel').onclick = cancel;
+      mb.querySelectorAll('tr.editing input').forEach(i => i.addEventListener('keydown', ev => { if (ev.key === 'Enter') save(); else if (ev.key === 'Escape') cancel(); }));
+    }
+    mb.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const [d, e, w] = b.dataset.del.split('|'); editing = null; P.holidays = P.holidays.filter(h => !(h.date === d && (h.end || '') === e && (h.who || '') === (w || ''))); holidaysChanged(); draw(); });
   };
   draw();
 }

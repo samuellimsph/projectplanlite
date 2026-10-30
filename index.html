@@ -85,6 +85,13 @@ table#grid{border-collapse:separate;border-spacing:0;table-layout:fixed}
 #grid tr.drop-into td{background:#dbeafe!important;box-shadow:inset 0 0 0 1px var(--accent)}
 #grid tr.dragging td{opacity:.45}
 body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
+#btnRes.flag{border-color:#fca5a5;background:#fef2f2;color:#b91c1c;font-weight:600}
+.badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+.badge.full{background:#fee2e2;color:#b91c1c}
+.badge.part{background:#fef3c7;color:#92400e}
+.mb table.rr td{vertical-align:top}
+.mb table.rr tr.grp{background:#f1f5f9}
+.mb table.rr tr.grp td{font-weight:700;border-bottom:1px solid var(--line)}
 #colMenu{background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:8px 10px;min-width:170px}
 #colMenu label{padding:3px 0}
 @page{size:A4 landscape;margin:10mm}
@@ -124,6 +131,7 @@ body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
       <label title="When off, Saturdays and Sundays are skipped in effort and date calculations"><input type="checkbox" id="incW"> Include weekends</label>
       <label>Project start <input type="date" id="pstart"></label>
       <button id="btnHol">Holidays (0)</button>
+      <button id="btnRes" title="Flag tasks assigned to people who are on leave">Resource Report</button>
     </div>
     <div class="grp"><label>Zoom <input type="range" id="zoom" min="4" max="40" step="1"></label></div>
     <div class="grp"><button id="btnPdf" class="primary" title="Opens the print dialog in landscape. Choose 'Save as PDF'.">Export PDF</button></div>
@@ -173,6 +181,7 @@ let S = {};            // computed schedule keyed by task uid
 function buildCal(){
   ctx.hol = new Set();
   for (const h of P.holidays) {
+    if (h.who) continue;
     const a = toDn(h.date); if (a == null) continue;
     let b = h.end ? toDn(h.end) : a; if (b == null || b < a) b = a;
     for (let d = a; d <= b && d - a < 3660; d++) ctx.hol.add(d);
@@ -298,6 +307,8 @@ function sampleProject(){
   spec.forEach((sp, i) => { if (sp[3]) P.tasks[i].preds = sp[3].map(([idx, type, lag]) => ({uid: P.tasks[idx].uid, type, lag})); });
   compute();
   ['','Alex','Priya','Priya','','Ben','Ben','Alex','','Priya','Alex','','Ben',''].forEach((a, i) => { P.tasks[i].assignee = a; });
+  const g = P.tasks[2], gs = S[g.uid].start;
+  P.holidays.push({date: fromDn(shiftWork(gs, 1)), end: fromDn(shiftWork(gs, 2)), name: 'Annual leave', who: 'Priya'});
   const kick = P.tasks[1]; kick.actualStart = fromDn(S[kick.uid].start); kick.actualEnd = fromDn(S[kick.uid].start);
   const req = P.tasks[2]; req.actualStart = fromDn(S[req.uid].start);
 }
@@ -311,6 +322,7 @@ function normalize(){
   if (!toDn(P.settings.projectStart)) P.settings.projectStart = fromDn(todayDn());
   P.holidays = (P.holidays || []).filter(h => toDn(h.date) != null).map(h => {
     const o = {date: h.date, name: h.name || ''};
+    if (h.who && String(h.who).trim()) o.who = String(h.who).trim();
     if (h.end && toDn(h.end) != null && toDn(h.end) > toDn(h.date)) o.end = h.end;
     return o;
   });
@@ -766,6 +778,7 @@ function renderGantt(){
 
 // ---------- status bar / header ----------
 function renderStatus(){
+  updateResBtn();
   const ss = P.tasks.map(t => S[t.uid]).filter(s => s.start != null);
   let txt = `${P.tasks.length} task(s)`;
   if (ss.length) {
@@ -783,6 +796,86 @@ function setHeader(){
 }
 function renderAll(){ renderTable(); renderGantt(); renderStatus(); $('#btnHol').textContent = `Holidays (${P.holidays.length})`; }
 
+
+// ---------- resource report ----------
+const normName = x => String(x || '').trim().toLowerCase();
+const splitWho = x => String(x || '').split(/[,;]/).map(v => v.trim()).filter(Boolean);
+function resourceReport(includeDone){
+  const rows = [];
+  const personalLeave = P.holidays.filter(h => h.who);
+  const assigned = new Set();
+  for (const t of P.tasks) {
+    const s = S[t.uid];
+    if (s.summary) continue;
+    const people = splitWho(t.assignee);
+    people.forEach(p => assigned.add(normName(p)));
+    if (!includeDone && s.ae != null) continue;
+    for (const person of people) {
+      const clash = new Set(), hits = [];
+      for (const h of personalLeave) {
+        if (normName(h.who) !== normName(person)) continue;
+        const a = toDn(h.date); let b = h.end ? toDn(h.end) : a; if (b < a) b = a;
+        const lo = Math.max(a, s.start), hi = Math.min(b, s.end);
+        if (lo > hi) continue;
+        let n = 0;
+        for (let d = lo; d <= hi; d++) if (isWork(d)) { clash.add(d); n++; }
+        if (n > 0) hits.push({name: h.name || 'Leave', from: a, to: b});
+      }
+      if (!clash.size) continue;
+      const taskDays = Math.max(1, countWork(s.start, s.end));
+      const days = [...clash].sort((x, y) => x - y);
+      rows.push({uid: t.uid, wbs: s.wbs, name: t.name, person, start: s.start, end: s.end, effort: s.effort, clashDays: clash.size, taskDays, first: days[0], last: days.at(-1), hits, full: clash.size >= taskDays, done: s.ae != null});
+    }
+  }
+  rows.sort((a, b) => a.person.localeCompare(b.person) || a.start - b.start);
+  const unmatched = [...new Set(personalLeave.map(h => h.who.trim()).filter(w => !assigned.has(normName(w))))];
+  return {rows, unmatched, personalCount: personalLeave.length};
+}
+function updateResBtn(){
+  const b = $('#btnRes'); if (!b) return;
+  const n = resourceReport(false).rows.length;
+  b.textContent = n ? `Resource Report (${n})` : 'Resource Report';
+  b.classList.toggle('flag', n > 0);
+}
+function openResourceReport(){
+  const mb = openModal('Resource report: leave clashes', '');
+  mb.parentElement.style.width = '860px';
+  let incl = false;
+  const rangeTxt = (a, b) => a === b ? fmtLong(a) : `${fmtLong(a)} → ${fmtLong(b)}`;
+  const draw = () => {
+    const r = resourceReport(incl), people = new Set(r.rows.map(x => x.person));
+    let html = `<div class="row"><label><input type="checkbox" id="rrDone" ${incl ? 'checked' : ''}> Include completed tasks</label><span style="margin-left:auto"></span><button id="rrCsv" ${r.rows.length ? '' : 'disabled'}>Download CSV</button></div>`;
+    if (!r.personalCount) {
+      html += '<p class="hint">No personal leave has been entered yet. Open <b>Holidays</b> and set <b>Applies to</b> to a person\'s name (as typed in the Assignee column) to record their leave or unavailability.</p>';
+    } else if (!r.rows.length) {
+      html += `<p><b>No clashes found.</b> None of the ${incl ? '' : 'open '}tasks fall on an assignee's recorded leave.</p>`;
+    } else {
+      const full = r.rows.filter(x => x.full).length;
+      html += `<p><b>${r.rows.length}</b> clash${r.rows.length > 1 ? 'es' : ''} across <b>${people.size}</b> ${people.size > 1 ? 'people' : 'person'}${full ? ` · <span class="badge full">${full} fully blocked</span>` : ''}. Only working days count: weekends and public holidays are ignored. Dates were not moved. Reassign, reschedule or adjust the leave to resolve them.</p>`;
+      html += '<table class="rr"><thead><tr><th>WBS</th><th>Task</th><th>Task dates</th><th>Leave clashing</th><th>Days</th><th>Impact</th></tr></thead><tbody>';
+      let cur = null;
+      for (const x of r.rows) {
+        if (x.person !== cur) { cur = x.person; html += `<tr class="grp"><td colspan="6">${esc(cur)}</td></tr>`; }
+        html += `<tr><td>${esc(x.wbs)}</td><td>${esc(x.name)}${x.done ? ' <span class="hint">(completed)</span>' : ''}</td><td style="white-space:nowrap">${rangeTxt(x.start, x.end)}</td><td>${x.hits.map(h => `${esc(h.name)}<br><span class="hint">${rangeTxt(h.from, h.to)}</span>`).join('<br>')}</td><td style="white-space:nowrap">${x.clashDays} of ${x.taskDays}</td><td>${x.full ? '<span class="badge full">Fully blocked</span>' : '<span class="badge part">Partial</span>'}</td></tr>`;
+      }
+      html += '</tbody></table>';
+    }
+    if (r.unmatched.length) html += `<p class="hint" style="margin-top:12px">Leave recorded for ${r.unmatched.map(esc).join(', ')} but no task is assigned to ${r.unmatched.length > 1 ? 'them' : 'that name'}. Check the spelling matches the Assignee column.</p>`;
+    mb.innerHTML = html;
+    mb.querySelector('#rrDone').onchange = e => { incl = e.target.checked; draw(); };
+    const csv = mb.querySelector('#rrCsv');
+    if (csv) csv.onclick = () => {
+      const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+      const lines = [['Assignee','WBS','Task','Task start','Task end','Leave','Leave dates','Clashing working days','Task working days','Impact'].map(q).join(',')]
+        .concat(r.rows.map(x => [x.person, x.wbs, x.name, fromDn(x.start), fromDn(x.end), x.hits.map(h => h.name).join('; '), x.hits.map(h => fromDn(h.from) + (h.to !== h.from ? ' to ' + fromDn(h.to) : '')).join('; '), x.clashDays, x.taskDays, x.full ? 'Fully blocked' : 'Partial'].map(q).join(',')));
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv'}));
+      a.download = (P.name || 'project').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_resource_report.csv';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    };
+  };
+  draw();
+}
+
 // ---------- modals ----------
 function closeModal(){ $('#modal-root').innerHTML = ''; }
 function openModal(title, html){
@@ -798,33 +891,33 @@ function openHolidays(){
   const draw = () => {
     const hs = [...P.holidays].sort((a, b) => a.date.localeCompare(b.date));
     mb.innerHTML = `
-      <div class="hint">Holidays and leave are non-working days: they are skipped in effort and timeline calculations (and shaded red on the Gantt). Leave the end date empty for a single day, or set it for a range such as long leave. Entries apply to the whole project.</div>
-      <div class="row"><label>From <input type="date" id="hDate"></label><label>To <input type="date" id="hEnd"></label><input type="text" id="hName" placeholder="Name, e.g. Annual leave (optional)" style="flex:1;min-width:160px"><button id="hAdd" class="primary">Add</button></div>
+      <div class="hint">Holidays and leave are non-working days: they are skipped in effort and timeline calculations (and shaded red on the Gantt). Leave the end date empty for a single day, or set it for a range such as long leave. Entries apply to everyone by default. Set <b>Applies to</b> to a person (as typed in the Assignee column) for personal leave: it will not move the schedule, but the <b>Resource Report</b> will flag that person's tasks that fall on it.</div>
+      <div class="row"><label>From <input type="date" id="hDate"></label><label>To <input type="date" id="hEnd"></label><input type="text" id="hName" placeholder="Name, e.g. Annual leave (optional)" style="flex:1;min-width:140px"><label>Applies to <input type="text" id="hWho" list="assigneeList" placeholder="Everyone" style="width:120px"></label><button id="hAdd" class="primary">Add</button></div>
       <div class="row"><button id="hPreset">Add Singapore 2026 public holidays</button><span class="hint">Please verify against the MOM list.</span><button id="hClear" class="danger" style="margin-left:auto">Clear all</button></div>
-      <details class="row" style="display:block"><summary>Bulk paste (one per line)</summary><div class="hint" style="margin:6px 0">Single day: <code>2026-12-24, Company shutdown</code><br>Range: <code>2026-12-21 to 2026-12-31, Annual leave</code> (also accepts <code>2026-12-21, 2026-12-31, Annual leave</code>)</div><textarea id="hBulk" placeholder="2026-12-24, Company shutdown&#10;2026-12-21 to 2026-12-31, Annual leave"></textarea><button id="hBulkAdd">Add pasted</button></details>
-      <table><thead><tr><th>From</th><th>To</th><th>Days</th><th>Name</th><th></th></tr></thead><tbody>${hs.map(h => { const a = toDn(h.date), e = h.end ? toDn(h.end) : a; return `<tr><td>${esc(h.date)} <span class="hint">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow(a)]}</span></td><td>${h.end ? esc(h.end) + ' <span class="hint">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow(e)] + '</span>' : '—'}</td><td>${e - a + 1}</td><td>${esc(h.name)}</td><td><button data-del="${esc(h.date)}|${esc(h.end || '')}" title="Remove">✕</button></td></tr>`; }).join('') || '<tr><td colspan="5" class="hint">No holidays yet</td></tr>'}</tbody></table>`;
-    const add = (date, name, end) => {
+      <details class="row" style="display:block"><summary>Bulk paste (one per line)</summary><div class="hint" style="margin:6px 0">Single day: <code>2026-12-24, Company shutdown</code><br>Range: <code>2026-12-21 to 2026-12-31, Annual leave</code> (also accepts <code>2026-12-21, 2026-12-31, Annual leave</code>)<br>Personal leave: add <code>@Name</code> at the end, e.g. <code>2026-12-21 to 2026-12-31, Annual leave @Priya</code></div><textarea id="hBulk" placeholder="2026-12-24, Company shutdown&#10;2026-12-21 to 2026-12-31, Annual leave"></textarea><button id="hBulkAdd">Add pasted</button></details>
+      <table><thead><tr><th>From</th><th>To</th><th>Days</th><th>Name</th><th>Applies to</th><th></th></tr></thead><tbody>${hs.map(h => { const a = toDn(h.date), e = h.end ? toDn(h.end) : a; return `<tr><td>${esc(h.date)} <span class="hint">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow(a)]}</span></td><td>${h.end ? esc(h.end) + ' <span class="hint">' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow(e)] + '</span>' : '—'}</td><td>${e - a + 1}</td><td>${esc(h.name)}</td><td>${h.who ? esc(h.who) : '<span class="hint">Everyone</span>'}</td><td><button data-del="${esc(h.date)}|${esc(h.end || '')}|${esc(h.who || '')}" title="Remove">✕</button></td></tr>`; }).join('') || '<tr><td colspan="6" class="hint">No holidays yet</td></tr>'}</tbody></table>`;
+    const add = (date, name, end, who) => {
       if (toDn(date) == null) return false;
       if (end) { if (toDn(end) == null || toDn(end) < toDn(date)) return false; if (end === date) end = ''; }
-      end = end || '';
-      if (!P.holidays.some(h => h.date === date && (h.end || '') === end)) { const o = {date, name: name || ''}; if (end) o.end = end; P.holidays.push(o); }
+      end = end || ''; who = (who || '').trim().replace(/\|/g, '');
+      if (!P.holidays.some(h => h.date === date && (h.end || '') === end && (h.who || '') === who)) { const o = {date, name: name || ''}; if (end) o.end = end; if (who) o.who = who; P.holidays.push(o); }
       return true;
     };
     mb.querySelector('#hAdd').onclick = () => {
       const d = mb.querySelector('#hDate').value, e = mb.querySelector('#hEnd').value;
       if (!d) return toast('Pick a start date');
       if (e && e < d) return toast('End date is before start date');
-      add(d, mb.querySelector('#hName').value.trim(), e); holidaysChanged(); draw();
+      add(d, mb.querySelector('#hName').value.trim(), e, mb.querySelector('#hWho').value); holidaysChanged(); draw();
     };
     mb.querySelector('#hPreset').onclick = () => { SG_2026.forEach(([d, n]) => add(d, n)); holidaysChanged(); draw(); };
     mb.querySelector('#hClear').onclick = () => { if (P.holidays.length && confirm('Remove all holidays?')) { P.holidays = []; holidaysChanged(); draw(); } };
     mb.querySelector('#hBulkAdd').onclick = () => {
       let bad = 0;
-      mb.querySelector('#hBulk').value.split('\n').forEach(line => { line = line.trim(); if (!line) return; const m = line.match(/^(\d{4}-\d{2}-\d{2})(?:\s*(?:to|-|–|,|;)\s*(\d{4}-\d{2}-\d{2}))?[\s,;]*(.*)$/i); if (!m || !add(m[1], m[3].trim(), m[2] || '')) bad++; });
+      mb.querySelector('#hBulk').value.split('\n').forEach(line => { line = line.trim(); if (!line) return; const m = line.match(/^(\d{4}-\d{2}-\d{2})(?:\s*(?:to|-|–|,|;)\s*(\d{4}-\d{2}-\d{2}))?[\s,;]*(.*)$/i); if (!m) { bad++; return; } let nm = m[3].trim(), who = ''; const w = nm.match(/(?:^|\s)@(.+)$/); if (w) { who = w[1].trim(); nm = nm.slice(0, w.index).trim(); } if (!add(m[1], nm, m[2] || '', who)) bad++; });
       if (bad) toast(`${bad} line(s) could not be read`);
       holidaysChanged(); draw();
     };
-    mb.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const [d, e] = b.dataset.del.split('|'); P.holidays = P.holidays.filter(h => !(h.date === d && (h.end || '') === e)); holidaysChanged(); draw(); });
+    mb.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const [d, e, w] = b.dataset.del.split('|'); P.holidays = P.holidays.filter(h => !(h.date === d && (h.end || '') === e && (h.who || '') === (w || ''))); holidaysChanged(); draw(); });
   };
   draw();
 }
@@ -927,6 +1020,7 @@ function init(){
   $('#pstart').onchange = e => { if (!toDn(e.target.value)) { e.target.value = P.settings.projectStart; return; } P.settings.projectStart = e.target.value; compute(); renderAll(); markDirty(); };
   $('#zoom').oninput = e => { ui.zoom = +e.target.value; renderGantt(); };
   $('#btnHol').onclick = openHolidays;
+  $('#btnRes').onclick = openResourceReport;
   $('#btnPdf').onclick = exportPdf;
   $('#btnSave').onclick = () => saveProject(false);
   $('#btnSaveAs').onclick = () => saveProject(true);

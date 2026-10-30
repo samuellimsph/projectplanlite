@@ -37,6 +37,9 @@ main{flex:1;min-height:0;display:flex}
 #ginner{position:relative}
 #ghdr{position:sticky;top:0;z-index:3;background:#fff;height:48px}
 table#grid{border-collapse:separate;border-spacing:0;table-layout:fixed}
+#grid th .thl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:48px;height:48px}
+.rz{position:absolute;top:0;right:-3px;width:7px;height:100%;cursor:col-resize;z-index:5}
+.rz:hover,.rz.on{background:linear-gradient(to right,transparent 2px,var(--accent) 2px,var(--accent) 5px,transparent 5px)}
 #grid th{position:sticky;top:0;z-index:3;height:48px;background:#f8fafc;border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:left;padding:0 6px;font-weight:600;font-size:12px;color:#374151}
 #grid td{height:30px;padding:0 4px;border-bottom:1px solid var(--line);border-right:1px solid #f0f2f5;white-space:nowrap;overflow:hidden}
 #grid tr.sum td{background:var(--sum);font-weight:600}
@@ -294,6 +297,9 @@ function normalize(){
   P.settings = Object.assign({includeWeekends: false, projectStart: fromDn(todayDn()), hiddenCols: []}, P.settings || {});
   if (!Array.isArray(P.settings.hiddenCols)) P.settings.hiddenCols = [];
   P.settings.hiddenCols = P.settings.hiddenCols.filter(k => k !== 'name');
+  const cw = (P.settings.colWidths && typeof P.settings.colWidths === 'object') ? P.settings.colWidths : {};
+  P.settings.colWidths = {};
+  for (const k in cw) if (typeof cw[k] === 'number' && isFinite(cw[k])) P.settings.colWidths[k] = clamp(Math.round(cw[k]), 50, 700);
   if (!toDn(P.settings.projectStart)) P.settings.projectStart = fromDn(todayDn());
   P.holidays = (P.holidays || []).filter(h => toDn(h.date) != null).map(h => {
     const o = {date: h.date, name: h.name || ''};
@@ -345,11 +351,34 @@ const COLS = [['wbs','WBS',56],['name','Task name',260],['assignee','Assignee',1
 const COL_LABEL = {wbs:'WBS', name:'Task name', assignee:'Assignee', effort:'Effort (days)', start:'Planned start', end:'Planned end', as:'Actual start', ae:'Actual end', preds:'Predecessors', status:'Status'};
 const isHidden = k => P.settings.hiddenCols.includes(k);
 const visCols = () => COLS.filter(c => !isHidden(c[0]));
+const MIN_W = 50, MAX_W = 700;
+const colW = c => (P.settings.colWidths && P.settings.colWidths[c[0]]) || c[2];
+function applyWidths(){
+  const cols = visCols();
+  $('#cg').innerHTML = cols.map(c => `<col style="width:${colW(c)}px">`).join('');
+  $('#grid').style.width = cols.reduce((a, c) => a + colW(c), 0) + 'px';
+}
 function buildHead(){
   const cols = visCols();
-  $('#cg').innerHTML = cols.map(c => `<col style="width:${c[2]}px">`).join('');
-  $('#thr').innerHTML = cols.map(c => `<th title="${c[0]==='effort'?'Working days of effort':''}">${c[1]}</th>`).join('');
-  $('#grid').style.width = cols.reduce((a, c) => a + c[2], 0) + 'px';
+  $('#thr').innerHTML = cols.map(c => `<th title="${c[0]==='effort'?'Working days of effort':''}"><div class="thl">${c[1]}</div><span class="rz" data-k="${c[0]}" title="Drag to resize. Double-click to reset."></span></th>`).join('');
+  applyWidths();
+}
+function initResize(){
+  const thr = $('#thr');
+  thr.addEventListener('mousedown', e => {
+    const h = e.target.closest('.rz'); if (!h) return;
+    e.preventDefault(); e.stopPropagation();
+    const k = h.dataset.k, c = COLS.find(x => x[0] === k);
+    const x0 = e.clientX, w0 = colW(c);
+    document.body.style.cursor = 'col-resize'; h.classList.add('on');
+    const mv = ev => { P.settings.colWidths[k] = clamp(Math.round(w0 + ev.clientX - x0), MIN_W, MAX_W); applyWidths(); };
+    const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); document.body.style.cursor = ''; h.classList.remove('on'); if (colW(c) !== w0) markDirty(); };
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+  });
+  thr.addEventListener('dblclick', e => {
+    const h = e.target.closest('.rz'); if (!h) return;
+    delete P.settings.colWidths[h.dataset.k]; applyWidths(); markDirty();
+  });
 }
 function toggleCol(k, show){
   const h = P.settings.hiddenCols.filter(x => x !== k);
@@ -363,10 +392,10 @@ function openColMenu(btn){
   const r = btn.getBoundingClientRect();
   m.style.cssText = `position:fixed;left:${r.left}px;top:${r.bottom + 4}px;z-index:40`;
   m.innerHTML = COLS.map(c => `<label><input type="checkbox" data-col="${c[0]}" ${isHidden(c[0]) ? '' : 'checked'} ${c[0] === 'name' ? 'disabled' : ''}> ${COL_LABEL[c[0]]}</label>`).join('') +
-    '<button id="colAll" style="margin-top:6px;width:100%">Show all</button>';
+    '<button id="colAll" style="margin-top:6px;width:100%" title="Show every column at its default width">Show all &amp; reset widths</button>';
   document.body.appendChild(m);
   m.addEventListener('change', e => { if (e.target.dataset.col) toggleCol(e.target.dataset.col, e.target.checked); });
-  m.querySelector('#colAll').onclick = () => { P.settings.hiddenCols = []; buildHead(); renderTable(); markDirty(); m.querySelectorAll('input').forEach(i => i.checked = true); };
+  m.querySelector('#colAll').onclick = () => { P.settings.hiddenCols = []; P.settings.colWidths = {}; buildHead(); renderTable(); markDirty(); m.querySelectorAll('input').forEach(i => i.checked = true); };
   setTimeout(() => {
     const away = ev => { if (!m.contains(ev.target) && ev.target !== btn) { m.remove(); document.removeEventListener('mousedown', away); } };
     document.addEventListener('mousedown', away);
@@ -797,6 +826,7 @@ window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; })
 
 // ---------- wiring ----------
 function init(){
+  initResize();
   const body = $('#gridBody');
   body.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.f) handleEdit(e.target); });
   body.addEventListener('focusin', e => { const tr = e.target.closest('tr'); if (tr) select(+tr.dataset.uid); });

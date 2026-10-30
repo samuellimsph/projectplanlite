@@ -730,8 +730,11 @@ function buildGantt(o){
   rows.forEach((uid, i) => {
     const s = S[uid], y = i * rowH, [l, r] = ext(uid), err = s.err ? ' stroke="#dc2626" stroke-width="2"' : '';
     if (labW) {
-      const t = s.t, nm = t.name.length > 34 ? t.name.slice(0, 33) + '…' : t.name;
-      body += `<text x="6" y="${y + 19}" font-size="10" fill="#6b7280">${esc(s.wbs)}</text><text x="${34 + t.level * 9}" y="${y + 19}" font-size="10" ${s.summary ? 'font-weight="700"' : ''} fill="#111827">${esc(nm)}</text>`;
+      const t = s.t, fs = o.labelFont || 10, tx = 34 + t.level * 9, bold = s.summary ? 'font-weight="700"' : '';
+      let lines = o.wrap ? o.wrap(t.name, t.level, s.summary) : [t.name.length > 34 ? t.name.slice(0, 33) + '…' : t.name];
+      if (lines.length === 1) body += `<text x="${tx}" y="${y + 19}" font-size="${fs}" ${bold} fill="#111827">${esc(lines[0])}</text>`;
+      else body += lines.map((ln, li) => `<text x="${tx}" y="${y + 14 + li * (fs + 2)}" font-size="${fs}" ${bold} fill="#111827">${esc(ln)}</text>`).join('');
+      body += `<text x="6" y="${y + 19}" font-size="${fs}" fill="#6b7280">${esc(s.wbs)}</text>`;
     }
     if (s.summary) {
       body += `<rect x="${l}" y="${y + 7}" width="${Math.max(r - l, 2)}" height="6" fill="#1f2937"${err}/>`;
@@ -959,9 +962,31 @@ function importJson(file){
 function exportPdf(){
   compute();
   const uids = P.tasks.map(t => t.uid);
-  const g = buildGantt({rows: uids, labels: true, labW: 240, fitWidth: 1000});
+  // label column: sized to the longest task name, names wrap onto up to two lines (never truncated)
+  const FS = 11, cv = document.createElement('canvas').getContext('2d'); cv.font = `${FS}px Arial, Helvetica, sans-serif`;
+  const mw = (txt, bold) => { cv.font = `${bold ? 'bold ' : ''}${FS}px Arial, Helvetica, sans-serif`; return cv.measureText(txt).width; };
+  let nat = 0; P.tasks.forEach(t => { nat = Math.max(nat, mw(t.name, S[t.uid].summary) + 34 + t.level * 9 + 14); });
+  const labW = clamp(Math.ceil(nat), 200, 460);
+  const wrap = (text, level, bold) => {
+    const avail = labW - 34 - level * 9 - 10, m = x => mw(x, bold), words = String(text).split(/\s+/), lines = []; let cur = '';
+    for (const w of words) {
+      const tryL = cur ? cur + ' ' + w : w;
+      if (m(tryL) <= avail || !cur) cur = tryL; else { lines.push(cur); cur = w; }
+    }
+    lines.push(cur);
+    if (lines.length > 2) { let rest = lines.slice(1).join(' '); while (rest.length > 1 && m(rest + '…') > avail) rest = rest.slice(0, -1); return [lines[0], rest + '…']; }
+    return lines.map(l => { while (l.length > 1 && m(l) > avail) l = l.slice(0, -1); return l; });
+  };
+  const g = buildGantt({rows: uids, labels: true, labW, labelFont: FS, wrap, fitWidth: 820});
   const ff = 'font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${g.W} ${g.H}" preserveAspectRatio="xMidYMin meet" style="width:100%;height:auto;max-height:165mm" ${ff}>${g.hdr}<g transform="translate(0,${g.hdrH})">${g.body}</g></svg>`;
+  // paginate rows so the chart stays readable: scale = 277mm / chart width
+  const mmPerPx = 277 / g.W, usableMm = 158;
+  const perPage = clamp(Math.floor((usableMm / mmPerPx - g.hdrH) / 30), 8, 60);
+  const pages = []; for (let i = 0; i < uids.length; i += perPage) pages.push([i, Math.min(uids.length, i + perPage)]);
+  const svgFor = (r0, r1) => {
+    const bh = (r1 - r0) * 30;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${g.W} ${g.hdrH + bh}" style="width:100%;height:auto;display:block" ${ff}>${g.hdr}<svg x="0" y="${g.hdrH}" width="${g.W}" height="${bh}" viewBox="0 ${r0 * 30} ${g.W} ${bh}" overflow="hidden">${g.body}</svg></svg>`;
+  };
   const ss = uids.map(u => S[u]).filter(s => s.start != null);
   const a = Math.min(...ss.map(s => s.start)), b = Math.max(...ss.map(s => s.end));
   const pc = visCols();
@@ -984,7 +1009,7 @@ function exportPdf(){
   $('#printArea').innerHTML = `
     <div class="p-head"><h1>${esc(P.name)}</h1><div class="meta">Timeline ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s) · printed ${fmtLong(todayDn())}</div></div>
     <table class="p-table"><thead><tr>${pc.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
-    <div class="p-gantt"><h2>${esc(P.name)} — Gantt chart</h2>${svg}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual (amber = in progress) · Purple diamond = milestone · Red dashed line = today · Shaded = non-working days</div></div>`;
+    ${pages.map(([r0, r1], pi) => `<div class="p-gantt"><h2>${esc(P.name)} — Gantt chart${pages.length > 1 ? ` (page ${pi + 1} of ${pages.length}, tasks ${S[uids[r0]].wbs} to ${S[uids[r1 - 1]].wbs})` : ''}</h2>${svgFor(r0, r1)}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual (amber = in progress) · Purple diamond = milestone · Red dashed line = today · Shaded = non-working days</div></div>`).join('')}`;
   const oldTitle = document.title; document.title = P.name || 'Project';
   setTimeout(() => { window.print(); document.title = oldTitle; }, 80);
 }

@@ -92,6 +92,10 @@ body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
 .mb table.rr td{vertical-align:top}
 .mb table.rr tr.grp{background:#f1f5f9}
 .mb table.rr tr.grp td{font-weight:700;border-bottom:1px solid var(--line)}
+#grid tr.calhdr td{background:var(--sum);font-weight:700;cursor:pointer}
+#grid tr.calrow td{background:#fffbeb;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+#grid .cdot{display:inline-block;width:12px;height:10px;margin-right:8px;border-radius:2px;background:#f59e0b;border:1px solid #d97706;vertical-align:-1px}
+#grid .cdot.p{background:repeating-linear-gradient(45deg,#fef3c7 0 3px,#f59e0b 3px 5px)}
 #colMenu{background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:8px 10px;min-width:170px}
 #colMenu label{padding:3px 0}
 @page{size:A4 landscape;margin:10mm}
@@ -315,6 +319,7 @@ function sampleProject(){
 function normalize(){
   P.settings = Object.assign({includeWeekends: false, projectStart: fromDn(todayDn()), hiddenCols: []}, P.settings || {});
   if (!Array.isArray(P.settings.hiddenCols)) P.settings.hiddenCols = [];
+  P.settings.calCollapsed = !!P.settings.calCollapsed;
   P.settings.hiddenCols = P.settings.hiddenCols.filter(k => k !== 'name');
   const cw = (P.settings.colWidths && typeof P.settings.colWidths === 'object') ? P.settings.colWidths : {};
   P.settings.colWidths = {};
@@ -479,9 +484,19 @@ function rowHTML(uid){
   };
   return `<tr data-uid="${uid}" class="${sum ? 'sum' : ''}${uid === selected ? ' sel' : ''}">${visCols().map(c => cell[c[0]]).join('')}</tr>`;
 }
+function calRowsHTML(){
+  const cal = calEntries(); if (!cal.length) return '';
+  const n = visCols().length, open = !P.settings.calCollapsed, DNs = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let h = `<tr class="calhdr" data-cal="toggle"><td colspan="${n}"><span class="tog">${open ? '▾' : '▸'}</span> Holidays &amp; leave (${cal.length} in timeline)</td></tr>`;
+  if (open) h += cal.map(x => {
+    const a = toDn(x.date), b = x.end ? toDn(x.end) : a;
+    return `<tr class="calrow" data-cal="entry" title="Click to open the holiday calendar"><td colspan="${n}"><span class="cdot ${x.who ? 'p' : ''}"></span><b>${esc(x.name || (x.who ? 'Leave' : 'Holiday'))}</b> · ${x.who ? esc(x.who) : 'Everyone'} · ${fmtLong(a)}${b > a ? ' → ' + fmtLong(b) : ''} <span class="hint">(${b - a + 1} day${b > a ? 's' : ''})</span></td></tr>`;
+  }).join('');
+  return h;
+}
 function renderTable(){
   $('#assigneeList').innerHTML = [...new Set(P.tasks.map(t => (t.assignee || '').trim()).filter(Boolean))].sort().map(a => `<option value="${esc(a)}">`).join('');
-  $('#gridBody').innerHTML = visibleUids().map(rowHTML).join('');
+  $('#gridBody').innerHTML = visibleUids().map(rowHTML).join('') + calRowsHTML();
   refreshValues(true);
 }
 function refreshAssigneeList(){ $('#assigneeList').innerHTML = [...new Set(P.tasks.map(t => (t.assignee || '').trim()).filter(Boolean))].sort().map(a => `<option value="${esc(a)}">`).join(''); }
@@ -680,15 +695,27 @@ function initDnd(){
 
 // ---------- Gantt ----------
 let markerN = 0;
-function buildGantt(o){
-  const rows = o.rows, rowH = 30, hdrH = 48, labW = o.labels ? o.labW : 0;
+function ganttRange(){
   let mn = Infinity, mx = -Infinity;
   P.tasks.forEach(t => { const s = S[t.uid]; if (s.start != null) { mn = Math.min(mn, s.start); mx = Math.max(mx, s.end); } if (s.as != null) mn = Math.min(mn, s.as); if (s.ae != null) mx = Math.max(mx, s.ae); });
   if (!isFinite(mn)) { mn = toDn(P.settings.projectStart); mx = mn + 27; }
-  const startDn = mn - 2, endDn = Math.max(mx + 6, startDn + 27), days = endDn - startDn + 1;
+  const startDn = mn - 2, endDn = Math.max(mx + 6, startDn + 27);
+  return {startDn, endDn};
+}
+// every holiday / leave entry that overlaps the timeline, in date order
+function calEntries(){
+  const {startDn, endDn} = ganttRange();
+  return P.holidays.filter(h => { const a = toDn(h.date), b = h.end ? toDn(h.end) : a; return b >= startDn && a <= endDn; })
+    .sort((x, y) => x.date.localeCompare(y.date) || (x.name || '').localeCompare(y.name || ''));
+}
+const calExtraRows = (n, open) => n ? 1 + (open ? n : 0) : 0;
+function buildGantt(o){
+  const rows = o.rows, rowH = 30, hdrH = 48, labW = o.labels ? o.labW : 0;
+  const {startDn, endDn} = ganttRange(), days = endDn - startDn + 1;
+  const cal = o.cal ? calEntries() : [], extra = calExtraRows(cal.length, o.calOpen), total = rows.length + extra;
   const dw = o.fitWidth ? clamp(o.fitWidth / days, 2.5, 22) : ui.zoom;
   const X = dn => labW + (dn - startDn) * dw;
-  const W = labW + days * dw, bodyH = rows.length * rowH;
+  const W = labW + days * dw, bodyH = total * rowH;
   const td = todayDn(), mk = 'ah' + (++markerN);
   let hdr = '', body = '';
   // header: months
@@ -715,10 +742,10 @@ function buildGantt(o){
   if (labW) hdr = `<rect x="0" y="0" width="${labW}" height="48" fill="#f8fafc" stroke="#e3e6ea"/><text x="6" y="30" font-size="11" font-weight="600" fill="#374151">WBS / Task</text>` + hdr;
   // body: shading + grid
   for (let k = startDn; k <= endDn; k++) {
-    if (!isWork(k)) body += `<rect x="${X(k)}" y="0" width="${dw}" height="${bodyH}" fill="${ctx.hol.has(k) ? '#fde8e8' : '#f3f4f6'}"/>`;
+    if (!isWork(k)) body += `<rect x="${X(k)}" y="0" width="${dw}" height="${bodyH}" fill="${ctx.hol.has(k) ? '#fde9a8' : '#f3f4f6'}" opacity="${ctx.hol.has(k) ? '.75' : '1'}"/>`;
     if (dow(k) === 1) body += `<line x1="${X(k)}" y1="0" x2="${X(k)}" y2="${bodyH}" stroke="#e8ebef"/>`;
   }
-  for (let r = 0; r <= rows.length; r++) body += `<line x1="0" y1="${r * rowH}" x2="${W}" y2="${r * rowH}" stroke="#eceff3"/>`;
+  for (let r = 0; r <= total; r++) body += `<line x1="0" y1="${r * rowH}" x2="${W}" y2="${r * rowH}" stroke="#eceff3"/>`;
   if (td >= startDn && td <= endDn) body += `<line x1="${X(td) + dw / 2}" y1="0" x2="${X(td) + dw / 2}" y2="${bodyH}" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4 3"/>`;
   // personal leave of each task's assignee(s): amber hatch on that task's row
   const personal = P.holidays.filter(h => h.who);
@@ -726,14 +753,34 @@ function buildGantt(o){
     body += `<defs><pattern id="lv${mk}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#fef3c7"/><line x1="0" y1="0" x2="0" y2="6" stroke="#f59e0b" stroke-width="2"/></pattern></defs>`;
     rows.forEach((uid, i) => {
       const s = S[uid]; if (s.summary) return;
-      const people = splitWho(s.t.assignee).map(normName);
+      const people = splitWho(s.t.assignee);
       if (!people.length) return;
       for (const h of personal) {
-        if (!people.includes(normName(h.who))) continue;
+        if (!people.some(p => personMatches(h.who, p))) continue;
         const a = toDn(h.date); let b = h.end ? toDn(h.end) : a; if (b < a) b = a;
         const lo = Math.max(a, startDn), hi = Math.min(b, endDn); if (lo > hi) continue;
         const rng = a === b ? fromDn(a) : fromDn(a) + ' to ' + fromDn(b);
         body += `<rect x="${X(lo)}" y="${i * rowH + 1}" width="${(hi - lo + 1) * dw}" height="${rowH - 2}" fill="url(#lv${mk})" stroke="#f59e0b" stroke-width="0.5"><title>${esc(h.who)} on leave: ${esc(h.name || 'Leave')} (${rng})</title></rect>`;
+      }
+    });
+  }
+  // calendar section: one amber band per holiday / leave entry
+  if (cal.length) {
+    if (!personal.length) body += '';
+    const hy = rows.length * rowH;
+    body += `<rect x="0" y="${hy}" width="${W}" height="${rowH}" fill="#f3f4f6"/>`;
+    if (labW) body += `<text x="6" y="${hy + 19}" font-size="${o.labelFont || 10}" font-weight="700" fill="#111827">Holidays &amp; leave (${cal.length})</text>`;
+    if (o.calOpen) cal.forEach((h, k) => {
+      const i = rows.length + 1 + k, y = i * rowH, a = toDn(h.date); let b = h.end ? toDn(h.end) : a; if (b < a) b = a;
+      const lo = Math.max(a, startDn), hi = Math.min(b, endDn), x1 = X(lo), x2 = X(hi + 1);
+      const rng = a === b ? fromDn(a) : fromDn(a) + ' to ' + fromDn(b), txt = (h.name || 'Holiday') + (h.who ? ' · ' + h.who : ' · Everyone');
+      body += `<rect x="${x1}" y="${y + 7}" width="${Math.max(x2 - x1, 3)}" height="16" rx="3" fill="${h.who ? 'url(#lv' + mk + ')' : '#f59e0b'}" stroke="#d97706" stroke-width="1"><title>${esc(txt)} (${rng})</title></rect>`;
+      const tw = txt.length * 5.4, right = x2 + 6 + tw <= W;
+      body += `<text x="${right ? x2 + 6 : x1 - 6}" y="${y + 19}" font-size="10" ${right ? '' : 'text-anchor="end"'} fill="#92400e">${esc(txt)}</text>`;
+      if (labW) {
+        const lines = o.wrap ? o.wrap(txt, 1, false) : [txt], fs = o.labelFont || 10;
+        body += lines.length === 1 ? `<text x="43" y="${y + 19}" font-size="${fs}" fill="#111827">${esc(lines[0])}</text>` : lines.map((ln, li) => `<text x="43" y="${y + 14 + li * (fs + 2)}" font-size="${fs}" fill="#111827">${esc(ln)}</text>`).join('');
+        body += `<text x="6" y="${y + 19}" font-size="${fs}" fill="#9ca3af">${h.who ? 'leave' : 'holiday'}</text>`;
       }
     });
   }
@@ -786,10 +833,10 @@ function buildGantt(o){
   });
   body += arrows;
   if (labW) body = `<rect x="0" y="0" width="${labW}" height="${bodyH}" fill="#fff"/>` + body.replace(/^/, '') + `<line x1="${labW}" y1="0" x2="${labW}" y2="${bodyH}" stroke="#cbd5e1"/>`;
-  return {hdr, body, W, H: hdrH + bodyH, bodyH, hdrH, startDn, dw, days};
+  return {hdr, body, W, H: hdrH + bodyH, bodyH, hdrH, startDn, dw, days, extra, total};
 }
 function renderGantt(){
-  const g = buildGantt({rows: visibleUids()});
+  const g = buildGantt({rows: visibleUids(), cal: true, calOpen: !P.settings.calCollapsed});
   const ff = 'font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"';
   $('#ghdr').innerHTML = `<svg width="${g.W}" height="${g.hdrH}" ${ff}>${g.hdr}</svg>`;
   $('#gbody').innerHTML = `<svg width="${g.W}" height="${Math.max(g.bodyH, 1)}" ${ff}>${g.body}</svg>`;
@@ -819,7 +866,14 @@ function renderAll(){ renderTable(); renderGantt(); renderStatus(); $('#btnHol')
 
 // ---------- resource report ----------
 const normName = x => String(x || '').trim().toLowerCase();
-const splitWho = x => String(x || '').split(/[,;]/).map(v => v.trim()).filter(Boolean);
+const splitWho = x => String(x || '').split(/[,;\/&]|\band\b/i).map(v => v.trim()).filter(Boolean);
+// leave name matches an assignee if equal, or if all words of one are contained in the other ("Arathi" ~ "Arathi Nair")
+function personMatches(leaveWho, person){
+  const a = normName(leaveWho).split(/\s+/).filter(Boolean), b = normName(person).split(/\s+/).filter(Boolean);
+  if (!a.length || !b.length) return false;
+  return a.every(t => b.includes(t)) || b.every(t => a.includes(t));
+}
+function leaveTaskCount(who){ return P.tasks.filter(t => !S[t.uid].summary && splitWho(t.assignee).some(p => personMatches(who, p))).length; }
 function resourceReport(includeDone){
   const rows = [];
   const personalLeave = P.holidays.filter(h => h.who);
@@ -828,12 +882,12 @@ function resourceReport(includeDone){
     const s = S[t.uid];
     if (s.summary) continue;
     const people = splitWho(t.assignee);
-    people.forEach(p => assigned.add(normName(p)));
+    people.forEach(p => assigned.add(p));
     if (!includeDone && s.ae != null) continue;
     for (const person of people) {
       const clash = new Set(), hits = [];
       for (const h of personalLeave) {
-        if (normName(h.who) !== normName(person)) continue;
+        if (!personMatches(h.who, person)) continue;
         const a = toDn(h.date); let b = h.end ? toDn(h.end) : a; if (b < a) b = a;
         const lo = Math.max(a, s.start), hi = Math.min(b, s.end);
         if (lo > hi) continue;
@@ -848,7 +902,7 @@ function resourceReport(includeDone){
     }
   }
   rows.sort((a, b) => a.person.localeCompare(b.person) || a.start - b.start);
-  const unmatched = [...new Set(personalLeave.map(h => h.who.trim()).filter(w => !assigned.has(normName(w))))];
+  const unmatched = [...new Set(personalLeave.map(h => h.who.trim()).filter(w => ![...assigned].some(p => personMatches(w, p))))];
   return {rows, unmatched, personalCount: personalLeave.length};
 }
 function updateResBtn(){
@@ -921,7 +975,7 @@ function openHolidays(){
       <table><thead><tr><th>From</th><th>To</th><th>Days</th><th>Name</th><th>Applies to</th><th></th></tr></thead><tbody>${hs.map(h => {
         if (h === editing) return `<tr class="editing"><td><input type="date" id="eDate" value="${esc(h.date)}"></td><td><input type="date" id="eEnd" value="${esc(h.end || '')}"></td><td class="hint">—</td><td><input type="text" id="eName" value="${esc(h.name)}" style="width:100%;min-width:110px"></td><td><input type="text" id="eWho" list="assigneeList" value="${esc(h.who || '')}" placeholder="Everyone" style="width:100%;min-width:90px"></td><td style="white-space:nowrap"><button id="eSave" class="primary">Save</button> <button id="eCancel">Cancel</button></td></tr>`;
         const a = toDn(h.date), e = h.end ? toDn(h.end) : a;
-        return `<tr data-row="${P.holidays.indexOf(h)}"><td>${esc(h.date)} <span class="hint">${DN[dow(a)]}</span></td><td>${h.end ? esc(h.end) + ' <span class="hint">' + DN[dow(e)] + '</span>' : '—'}</td><td>${e - a + 1}</td><td>${esc(h.name)}</td><td>${h.who ? esc(h.who) : '<span class="hint">Everyone</span>'}</td><td style="white-space:nowrap"><button data-edit="${P.holidays.indexOf(h)}" title="Edit">Edit</button> <button data-del="${esc(h.date)}|${esc(h.end || '')}|${esc(h.who || '')}" title="Remove">✕</button></td></tr>`;
+        return `<tr data-row="${P.holidays.indexOf(h)}"><td>${esc(h.date)} <span class="hint">${DN[dow(a)]}</span></td><td>${h.end ? esc(h.end) + ' <span class="hint">' + DN[dow(e)] + '</span>' : '—'}</td><td>${e - a + 1}</td><td>${esc(h.name)}</td><td>${h.who ? esc(h.who) + (leaveTaskCount(h.who) ? ` <span class="badge part" style="background:#dcfce7;color:#166534" title="Tasks whose assignee matches this name">${leaveTaskCount(h.who)} task${leaveTaskCount(h.who) > 1 ? 's' : ''}</span>` : ' <span class="badge full" title="No task has an assignee matching this name. Check the spelling against the Assignee column.">no matching assignee</span>') : '<span class="hint">Everyone</span>'}</td><td style="white-space:nowrap"><button data-edit="${P.holidays.indexOf(h)}" title="Edit">Edit</button> <button data-del="${esc(h.date)}|${esc(h.end || '')}|${esc(h.who || '')}" title="Remove">✕</button></td></tr>`;
       }).join('') || '<tr><td colspan="6" class="hint">No holidays yet</td></tr>'}</tbody></table>`;
     const add = (date, name, end, who) => {
       if (toDn(date) == null) return false;
@@ -1019,12 +1073,13 @@ function exportPdf(){
     if (lines.length > 2) { let rest = lines.slice(1).join(' '); while (rest.length > 1 && m(rest + '…') > avail) rest = rest.slice(0, -1); return [lines[0], rest + '…']; }
     return lines.map(l => { while (l.length > 1 && m(l) > avail) l = l.slice(0, -1); return l; });
   };
-  const g = buildGantt({rows: uids, labels: true, labW, labelFont: FS, wrap, fitWidth: 820});
+  const g = buildGantt({rows: uids, labels: true, labW, labelFont: FS, wrap, fitWidth: 820, cal: true, calOpen: true});
   const ff = 'font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"';
   // paginate rows so the chart stays readable: scale = 277mm / chart width
   const mmPerPx = 277 / g.W, usableMm = 158;
   const perPage = clamp(Math.floor((usableMm / mmPerPx - g.hdrH) / 30), 8, 60);
-  const pages = []; for (let i = 0; i < uids.length; i += perPage) pages.push([i, Math.min(uids.length, i + perPage)]);
+  const pages = []; for (let i = 0; i < g.total; i += perPage) pages.push([i, Math.min(g.total, i + perPage)]);
+  const lbl = r => r < uids.length ? S[uids[r]].wbs : 'holidays & leave';
   const svgFor = (r0, r1) => {
     const bh = (r1 - r0) * 30;
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${g.W} ${g.hdrH + bh}" style="width:100%;height:auto;display:block" ${ff}>${g.hdr}<svg x="0" y="${g.hdrH}" width="${g.W}" height="${bh}" viewBox="0 ${r0 * 30} ${g.W} ${bh}" overflow="hidden">${g.body}</svg></svg>`;
@@ -1051,7 +1106,7 @@ function exportPdf(){
   $('#printArea').innerHTML = `
     <div class="p-head"><h1>${esc(P.name)}</h1><div class="meta">Timeline ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s) · printed ${fmtLong(todayDn())}</div></div>
     <table class="p-table"><thead><tr>${pc.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
-    ${pages.map(([r0, r1], pi) => `<div class="p-gantt"><h2>${esc(P.name)} — Gantt chart${pages.length > 1 ? ` (page ${pi + 1} of ${pages.length}, tasks ${S[uids[r0]].wbs} to ${S[uids[r1 - 1]].wbs})` : ''}</h2>${svgFor(r0, r1)}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual (amber = in progress) · Purple diamond = milestone · Red dashed line = today · Grey/red shading = non-working days · Amber hatch = assignee on personal leave</div></div>`).join('')}`;
+    ${pages.map(([r0, r1], pi) => `<div class="p-gantt"><h2>${esc(P.name)} — Gantt chart${pages.length > 1 ? ` (page ${pi + 1} of ${pages.length}, ${r0 >= uids.length ? 'holidays &amp; leave' : 'tasks ' + lbl(r0) + ' to ' + lbl(r1 - 1)})` : ''}</h2>${svgFor(r0, r1)}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual (amber = in progress) · Purple diamond = milestone · Red dashed line = today · Grey = weekends · Amber = holidays (everyone) and leave (hatched = one person)</div></div>`).join('')}`;
   const oldTitle = document.title; document.title = P.name || 'Project';
   setTimeout(() => { window.print(); document.title = oldTitle; }, 80);
 }
@@ -1062,9 +1117,12 @@ function init(){
   initResize(); initDnd();
   const body = $('#gridBody');
   body.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.f) handleEdit(e.target); });
-  body.addEventListener('focusin', e => { const tr = e.target.closest('tr'); if (tr) select(+tr.dataset.uid); });
+  body.addEventListener('focusin', e => { const tr = e.target.closest('tr'); if (tr && tr.dataset.uid) select(+tr.dataset.uid); });
   body.addEventListener('click', e => {
-    const tr = e.target.closest('tr'); if (tr) select(+tr.dataset.uid);
+    const tr = e.target.closest('tr');
+    if (tr && tr.dataset.cal === 'toggle') { P.settings.calCollapsed = !P.settings.calCollapsed; renderAll(); markDirty(); return; }
+    if (tr && tr.dataset.cal === 'entry') { openHolidays(); return; }
+    if (tr && tr.dataset.uid) select(+tr.dataset.uid);
     const tg = e.target.closest('.tog');
     if (tg && tg.dataset.uid) { const t = P.tasks[idxOf(+tg.dataset.uid)]; t.collapsed = !t.collapsed; renderAll(); markDirty(); }
   });

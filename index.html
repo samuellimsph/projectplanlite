@@ -455,7 +455,7 @@ function valueFor(s, f){
     case 'as': return s.as != null ? fromDn(s.as) : '';
     case 'ae': return s.ae != null ? fromDn(s.ae) : '';
     case 'preds': return predText(s.t);
-    case 'assignee': return s.summary ? [...new Set(descendantAssignees(s))].join(', ') : (s.t.assignee || '');
+    case 'assignee': return s.summary ? (() => { const seen = new Set(), out = []; descendantAssignees(s).forEach(a => { const k = a.trim().toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(a); } }); return out.join(', '); })() : (s.t.assignee || '');
     case 'status': return statusText(s);
   }
   return '';
@@ -720,6 +720,23 @@ function buildGantt(o){
   }
   for (let r = 0; r <= rows.length; r++) body += `<line x1="0" y1="${r * rowH}" x2="${W}" y2="${r * rowH}" stroke="#eceff3"/>`;
   if (td >= startDn && td <= endDn) body += `<line x1="${X(td) + dw / 2}" y1="0" x2="${X(td) + dw / 2}" y2="${bodyH}" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  // personal leave of each task's assignee(s): amber hatch on that task's row
+  const personal = P.holidays.filter(h => h.who);
+  if (personal.length) {
+    body += `<defs><pattern id="lv${mk}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#fef3c7"/><line x1="0" y1="0" x2="0" y2="6" stroke="#f59e0b" stroke-width="2"/></pattern></defs>`;
+    rows.forEach((uid, i) => {
+      const s = S[uid]; if (s.summary) return;
+      const people = splitWho(s.t.assignee).map(normName);
+      if (!people.length) return;
+      for (const h of personal) {
+        if (!people.includes(normName(h.who))) continue;
+        const a = toDn(h.date); let b = h.end ? toDn(h.end) : a; if (b < a) b = a;
+        const lo = Math.max(a, startDn), hi = Math.min(b, endDn); if (lo > hi) continue;
+        const rng = a === b ? fromDn(a) : fromDn(a) + ' to ' + fromDn(b);
+        body += `<rect x="${X(lo)}" y="${i * rowH + 1}" width="${(hi - lo + 1) * dw}" height="${rowH - 2}" fill="url(#lv${mk})" stroke="#f59e0b" stroke-width="0.5"><title>${esc(h.who)} on leave: ${esc(h.name || 'Leave')} (${rng})</title></rect>`;
+      }
+    });
+  }
   // bars
   const rowIdx = {}; rows.forEach((u, i) => rowIdx[u] = i);
   const ext = uid => {
@@ -1034,7 +1051,7 @@ function exportPdf(){
   $('#printArea').innerHTML = `
     <div class="p-head"><h1>${esc(P.name)}</h1><div class="meta">Timeline ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s) · printed ${fmtLong(todayDn())}</div></div>
     <table class="p-table"><thead><tr>${pc.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
-    ${pages.map(([r0, r1], pi) => `<div class="p-gantt"><h2>${esc(P.name)} — Gantt chart${pages.length > 1 ? ` (page ${pi + 1} of ${pages.length}, tasks ${S[uids[r0]].wbs} to ${S[uids[r1 - 1]].wbs})` : ''}</h2>${svgFor(r0, r1)}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual (amber = in progress) · Purple diamond = milestone · Red dashed line = today · Shaded = non-working days</div></div>`).join('')}`;
+    ${pages.map(([r0, r1], pi) => `<div class="p-gantt"><h2>${esc(P.name)} — Gantt chart${pages.length > 1 ? ` (page ${pi + 1} of ${pages.length}, tasks ${S[uids[r0]].wbs} to ${S[uids[r1 - 1]].wbs})` : ''}</h2>${svgFor(r0, r1)}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual (amber = in progress) · Purple diamond = milestone · Red dashed line = today · Grey/red shading = non-working days · Amber hatch = assignee on personal leave</div></div>`).join('')}`;
   const oldTitle = document.title; document.title = P.name || 'Project';
   setTimeout(() => { window.print(); document.title = oldTitle; }, 80);
 }

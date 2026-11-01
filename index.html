@@ -30,7 +30,7 @@ input[type=date],input[type=text],input[type=number]{font:inherit;color:inherit}
 .toolbar{display:flex;gap:6px;align-items:center;padding:6px 12px;background:#fafbfc;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .toolbar .sep{width:1px;height:20px;background:var(--line);margin:0 4px}
 main{flex:1;min-height:0;display:flex}
-#lpane{width:58%;min-width:260px;overflow:scroll;background:var(--panel);position:relative}
+#lpane{width:58%;min-width:260px;overflow:scroll;background:var(--panel)}
 #divider{width:6px;cursor:col-resize;background:var(--line);flex:none}
 #divider:hover{background:#c7d2e0}
 #rpane{flex:1;min-width:200px;overflow:scroll;background:var(--panel);position:relative}
@@ -41,8 +41,7 @@ table#grid{border-collapse:separate;border-spacing:0;table-layout:fixed}
 .rz{position:absolute;top:0;right:-3px;width:7px;height:100%;cursor:col-resize;z-index:5}
 .rz:hover,.rz.on{background:linear-gradient(to right,transparent 2px,var(--accent) 2px,var(--accent) 5px,transparent 5px)}
 #grid th{position:sticky;top:0;z-index:3;height:48px;background:#f8fafc;border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:left;padding:0 6px;font-weight:600;font-size:12px;color:#374151}
-#grid td{height:30px;padding:0 4px;border-bottom:1px solid var(--line);border-right:1px solid #f0f2f5;white-space:nowrap;overflow:hidden;box-sizing:border-box;line-height:24px}
-#grid tbody tr{height:30px}
+#grid td{height:30px;padding:0 4px;border-bottom:1px solid var(--line);border-right:1px solid #f0f2f5;white-space:nowrap;overflow:hidden}
 #grid tr.sum td{background:var(--sum);font-weight:600}
 #grid tr.sel td{background:var(--sel)}
 #grid input{height:24px;width:100%;border:1px solid transparent;border-radius:4px;padding:0 4px;background:transparent;font-size:12px}
@@ -50,9 +49,12 @@ table#grid{border-collapse:separate;border-spacing:0;table-layout:fixed}
 #grid input:focus{outline:none;border-color:var(--accent);background:#fff}
 #grid tr.sum input[data-f=name]{font-weight:600}
 #grid input[type=date]{padding:0 2px}
-#grid .c-name{display:flex;align-items:center;gap:2px;height:30px}
+#grid .c-name{display:flex;align-items:center;gap:2px}
 #grid .c-name input{flex:1;min-width:0}
 #grid .c-start{display:flex;align-items:center;gap:2px;height:28px}
+#grid tbody tr{height:30px}
+#grid td{box-sizing:border-box;line-height:24px}
+#grid .c-name{height:30px}
 .tog{display:inline-block;width:16px;text-align:center;cursor:pointer;color:var(--muted);user-select:none;flex:none}
 .tog.sp{cursor:default}
 .ro{display:inline-block;padding:0 4px;font-size:12px}
@@ -60,24 +62,6 @@ table#grid{border-collapse:separate;border-spacing:0;table-layout:fixed}
 .warn{color:var(--danger);cursor:help;flex:none}
 .pin{font-size:11px;flex:none;cursor:help}
 .status{font-size:12px;color:#374151}
-#grid .dh{cursor:grab;color:#9ca3af;width:12px;flex:none;text-align:center;user-select:none;font-size:11px;letter-spacing:-2px}
-#grid .dh:hover{color:var(--accent)}
-#grid td.c-wbs{cursor:grab}
-#dropLine{position:absolute;height:3px;background:var(--accent);border-radius:2px;pointer-events:none;z-index:6}
-#grid tr.drop-into td{background:#dbeafe!important;box-shadow:inset 0 0 0 1px var(--accent)}
-#grid tr.dragging td{opacity:.45}
-body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
-#grid tr.calhdr td{background:var(--sum);font-weight:700;cursor:pointer}
-#grid tr.calrow td{background:#fffbeb;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-#grid .cdot{display:inline-block;width:12px;height:10px;margin-right:8px;border-radius:2px;background:#f59e0b;border:1px solid #d97706;vertical-align:-1px}
-#grid .cdot.p{background:repeating-linear-gradient(45deg,#fef3c7 0 3px,#f59e0b 3px 5px)}
-#colMenu{background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:8px 10px;min-width:170px}
-#colMenu label{padding:3px 0}
-#btnRes.flag{border-color:#fca5a5;background:#fef2f2;color:#b91c1c;font-weight:600}
-.badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
-.badge.full{background:#fee2e2;color:#b91c1c}
-.badge.part{background:#fef3c7;color:#92400e}
-.badge.ok{background:#dcfce7;color:#166534}
 #statusbar{padding:5px 12px;background:var(--panel);border-top:1px solid var(--line);color:var(--muted);font-size:12px}
 .ov{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:50}
 .modal{background:#fff;border-radius:10px;width:640px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.25)}
@@ -89,13 +73,31 @@ body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
 .mb .row{display:flex;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap}
 .mb input[type=text],.mb input[type=date],.mb textarea{border:1px solid var(--line);border-radius:6px;padding:5px 8px}
 .mb textarea{width:100%;min-height:70px;font:12px monospace}
-.mb .hint,.hint{color:var(--muted);font-size:12px}
-.mb table.rr td{vertical-align:top}
-.mb table.rr tr.grp{background:#f1f5f9}
-.mb table.rr tr.grp td{font-weight:700;border-bottom:1px solid var(--line)}
+.mb .hint{color:var(--muted);font-size:12px}
 #toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);background:#111827;color:#fff;padding:9px 16px;border-radius:8px;z-index:99;opacity:0;pointer-events:none;transition:opacity .2s;max-width:80vw}
 #toast.show{opacity:1}
 #printArea{display:none}
+#grid .dh{cursor:grab;color:#9ca3af;width:12px;flex:none;text-align:center;user-select:none;font-size:11px;letter-spacing:-2px}
+#grid .dh:hover{color:var(--accent)}
+#grid td.c-wbs{cursor:grab}
+#lpane{position:relative}
+#dropLine{position:absolute;height:3px;background:var(--accent);border-radius:2px;pointer-events:none;z-index:6}
+#grid tr.drop-into td{background:#dbeafe!important;box-shadow:inset 0 0 0 1px var(--accent)}
+#grid tr.dragging td{opacity:.45}
+body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
+#btnRes.flag{border-color:#fca5a5;background:#fef2f2;color:#b91c1c;font-weight:600}
+.badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+.badge.full{background:#fee2e2;color:#b91c1c}
+.badge.part{background:#fef3c7;color:#92400e}
+.mb table.rr td{vertical-align:top}
+.mb table.rr tr.grp{background:#f1f5f9}
+.mb table.rr tr.grp td{font-weight:700;border-bottom:1px solid var(--line)}
+#grid tr.calhdr td{background:var(--sum);font-weight:700;cursor:pointer}
+#grid tr.calrow td{background:#fffbeb;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+#grid .cdot{display:inline-block;width:12px;height:10px;margin-right:8px;border-radius:2px;background:#f59e0b;border:1px solid #d97706;vertical-align:-1px}
+#grid .cdot.p{background:repeating-linear-gradient(45deg,#fef3c7 0 3px,#f59e0b 3px 5px)}
+#colMenu{background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:8px 10px;min-width:170px}
+#colMenu label{padding:3px 0}
 @page{size:A4 landscape;margin:10mm}
 @media print{
   html,body{height:auto;background:#fff}
@@ -130,7 +132,7 @@ body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
       <input id="fileIn" type="file" accept=".json,application/json" hidden>
     </div>
     <div class="grp">
-      <label title="When off, Saturdays and Sundays are skipped in effort, date and leave-day calculations"><input type="checkbox" id="incW"> Include weekends</label>
+      <label title="When off, Saturdays and Sundays are skipped in effort and date calculations"><input type="checkbox" id="incW"> Include weekends</label>
       <label>Project start <input type="date" id="pstart"></label>
       <button id="btnHol">Holidays (0)</button>
       <button id="btnRes" title="Flag tasks assigned to people who are on leave">Resource Report</button>
@@ -150,9 +152,9 @@ body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
     <button id="tDel" class="danger">Delete</button>
     <span class="sep"></span>
     <button id="tExp">Expand all</button>
-    <button id="tCol">Collapse all</button>
     <span class="sep"></span>
     <button id="tCols">Columns ▾</button>
+    <button id="tCol">Collapse all</button>
     <span style="margin-left:auto;color:var(--muted);font-size:12px">Predecessors: WBS codes, e.g. <b>1.2</b>, <b>2.1SS+2d</b>, <b>3FF-1d</b> (types FS, SS, FF, SF)</span>
   </div>
   <main id="split">
@@ -183,17 +185,16 @@ let S = {};            // computed schedule keyed by task uid
 function buildCal(){
   ctx.hol = new Set();
   for (const h of P.holidays) {
-    if (h.who) continue;                       // personal leave never moves the schedule
+    if (h.who) continue;
     const a = toDn(h.date); if (a == null) continue;
     let b = h.end ? toDn(h.end) : a; if (b == null || b < a) b = a;
     for (let d = a; d <= b && d - a < 3660; d++) ctx.hol.add(d);
   }
   ctx.inc = !!P.settings.includeWeekends;
 }
-function isWeekend(dn){ const w = dow(dn); return w === 0 || w === 6; }
 function isWork(dn){
   if (ctx.hol.has(dn)) return false;
-  if (!ctx.inc && isWeekend(dn)) return false;
+  if (!ctx.inc) { const w = dow(dn); if (w === 0 || w === 6) return false; }
   return true;
 }
 function nextWork(dn){ let n = 0; while (!isWork(dn) && n++ < 4000) dn++; return dn; }
@@ -206,9 +207,6 @@ function shiftWork(dn, k){
 function endFromStart(s, eff){ s = nextWork(s); const n = Math.ceil(eff); return n <= 1 ? s : shiftWork(s, n - 1); }
 function startFromEnd(e, eff){ e = prevWork(e); const n = Math.ceil(eff); return n <= 1 ? e : shiftWork(e, -(n - 1)); }
 function countWork(a, b){ if (b < a) return 0; let c = 0; for (let d = a; d <= b && d - a < 20000; d++) if (isWork(d)) c++; return c; }
-// days in a range that count as days at all: weekends are NOT counted unless "Include weekends" is on.
-// (Used for holiday / leave lengths: a holiday entry's own days are excluded from isWork, so this ignores the holiday set.)
-function countDays(a, b){ if (b < a) return 0; let c = 0; for (let d = a; d <= b && d - a < 20000; d++) if (ctx.inc || !isWeekend(d)) c++; return c; }
 
 function compute(){
   buildCal();
@@ -279,26 +277,12 @@ function calc(uid){
 const $ = (q, el = document) => el.querySelector(q);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const DNAME = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fmtLong = dn => { if (dn == null) return ''; const d = new Date(dn * DAY); return `${String(d.getUTCDate()).padStart(2,'0')} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ui = {zoom: 22, dirty: false, projectId: null};
 let selected = null;
 let toastT;
 function toast(msg){ const el = $('#toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 3200); }
-const normName = x => String(x || '').trim().toLowerCase();
-const splitWho = x => String(x || '').split(/[,;\/&]|\band\b/i).map(v => v.trim()).filter(Boolean);
-// leave name matches an assignee if equal, or if all words of one are contained in the other ("Arathi" ~ "Arathi Nair")
-function personMatches(leaveWho, person){
-  const a = normName(leaveWho).split(/\s+/).filter(Boolean), b = normName(person).split(/\s+/).filter(Boolean);
-  if (!a.length || !b.length) return false;
-  return a.every(t => b.includes(t)) || b.every(t => a.includes(t));
-}
-function leaveTaskCount(who){ return P.tasks.filter(t => !S[t.uid].summary && splitWho(t.assignee).some(p => personMatches(who, p))).length; }
-// length of a holiday / leave entry in countable days (weekends excluded unless "Include weekends" is on)
-function entryRange(h){ const a = toDn(h.date); let b = h.end ? toDn(h.end) : a; if (b == null || b < a) b = a; return [a, b]; }
-function entryDays(h){ const [a, b] = entryRange(h); return countDays(a, b); }
-const dayWord = n => `${n} working day${n === 1 ? '' : 's'}`;
 
 // ---------- data model ----------
 const SG_2026 = [
@@ -309,7 +293,7 @@ const SG_2026 = [
   ['2026-11-08','Deepavali'],['2026-11-09','Deepavali (observed)'],['2026-12-25','Christmas Day']
 ];
 function blankProject(name){
-  return {name: name || 'Untitled project', settings: {includeWeekends: false, projectStart: fromDn(todayDn()), hiddenCols: [], colWidths: {}, calCollapsed: false}, holidays: [], tasks: [], nextUid: 1};
+  return {name: name || 'Untitled project', settings: {includeWeekends: false, projectStart: fromDn(todayDn())}, holidays: [], tasks: [], nextUid: 1};
 }
 function mkTask(name, level, effort){
   return {uid: P.nextUid++, name, level, effort, assignee: '', startNoEarlier: '', actualStart: '', actualEnd: '', preds: [], collapsed: false};
@@ -325,8 +309,8 @@ function sampleProject(){
   ];
   spec.forEach(([n, l, e]) => P.tasks.push(mkTask(n, l, e)));
   spec.forEach((sp, i) => { if (sp[3]) P.tasks[i].preds = sp[3].map(([idx, type, lag]) => ({uid: P.tasks[idx].uid, type, lag})); });
-  ['','Alex','Priya','Priya','','Ben','Ben','Alex','','Priya','Alex','','Ben',''].forEach((a, i) => { P.tasks[i].assignee = a; });
   compute();
+  ['','Alex','Priya','Priya','','Ben','Ben','Alex','','Priya','Alex','','Ben',''].forEach((a, i) => { P.tasks[i].assignee = a; });
   const g = P.tasks[2], gs = S[g.uid].start;
   P.holidays.push({date: fromDn(shiftWork(gs, 1)), end: fromDn(shiftWork(gs, 2)), name: 'Annual leave', who: 'Priya'});
   const kick = P.tasks[1]; kick.actualStart = fromDn(S[kick.uid].start); kick.actualEnd = fromDn(S[kick.uid].start);
@@ -334,13 +318,13 @@ function sampleProject(){
 }
 function normalize(){
   P.settings = Object.assign({includeWeekends: false, projectStart: fromDn(todayDn()), hiddenCols: []}, P.settings || {});
-  if (!toDn(P.settings.projectStart)) P.settings.projectStart = fromDn(todayDn());
   if (!Array.isArray(P.settings.hiddenCols)) P.settings.hiddenCols = [];
   P.settings.calCollapsed = !!P.settings.calCollapsed;
   P.settings.hiddenCols = P.settings.hiddenCols.filter(k => k !== 'name');
   const cw = (P.settings.colWidths && typeof P.settings.colWidths === 'object') ? P.settings.colWidths : {};
   P.settings.colWidths = {};
   for (const k in cw) if (typeof cw[k] === 'number' && isFinite(cw[k])) P.settings.colWidths[k] = clamp(Math.round(cw[k]), 50, 700);
+  if (!toDn(P.settings.projectStart)) P.settings.projectStart = fromDn(todayDn());
   P.holidays = (P.holidays || []).filter(h => toDn(h.date) != null).map(h => {
     const o = {date: h.date, name: h.name || ''};
     if (h.who && String(h.who).trim()) o.who = String(h.who).trim();
@@ -401,7 +385,7 @@ function applyWidths(){
 }
 function buildHead(){
   const cols = visCols();
-  $('#thr').innerHTML = cols.map(c => `<th title="${c[0]==='effort'?'Working days of effort (weekends not counted)':''}"><div class="thl">${c[1]}</div><span class="rz" data-k="${c[0]}" title="Drag to resize. Double-click to reset."></span></th>`).join('');
+  $('#thr').innerHTML = cols.map(c => `<th title="${c[0]==='effort'?'Working days of effort':''}"><div class="thl">${c[1]}</div><span class="rz" data-k="${c[0]}" title="Drag to resize. Double-click to reset."></span></th>`).join('');
   applyWidths();
 }
 function initResize(){
@@ -470,13 +454,13 @@ function valueFor(s, f){
   switch (f) {
     case 'wbs': return s.wbs;
     case 'name': return s.t.name;
-    case 'assignee': return s.summary ? (() => { const seen = new Set(), out = []; descendantAssignees(s).forEach(a => { const k = a.trim().toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(a); } }); return out.join(', '); })() : (s.t.assignee || '');
     case 'effort': return s.summary ? s.effort : s.t.effort;
     case 'start': return fromDn(s.start);
     case 'end': return fromDn(s.end);
     case 'as': return s.as != null ? fromDn(s.as) : '';
     case 'ae': return s.ae != null ? fromDn(s.ae) : '';
     case 'preds': return predText(s.t);
+    case 'assignee': return s.summary ? (() => { const seen = new Set(), out = []; descendantAssignees(s).forEach(a => { const k = a.trim().toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(a); } }); return out.join(', '); })() : (s.t.assignee || '');
     case 'status': return statusText(s);
   }
   return '';
@@ -490,7 +474,7 @@ function rowHTML(uid){
     wbs: `<td class="c-wbs">${ro('wbs')}</td>`,
     name: `<td class="c-name" style="padding-left:${4 + t.level * 16}px"><span class="dh" title="Drag to reorder (moves subtasks too)">⋮⋮</span>${tog}${inp('name','text')}<span class="warn" data-uid="${uid}" data-f="err">⚠</span></td>`,
     assignee: `<td>${sum ? ro('assignee') : inp('assignee','text','list="assigneeList" placeholder="Unassigned"')}</td>`,
-    effort: `<td>${sum ? ro('effort') : inp('effort','number','min="0" step="1" title="Effort in working days (0 = milestone). Weekends are not counted."')}</td>`,
+    effort: `<td>${sum ? ro('effort') : inp('effort','number','min="0" step="1" title="Effort in working days (0 = milestone)"')}</td>`,
     start: `<td>${sum ? ro('start') : `<div class="c-start">${inp('start','date')}<span class="pin" data-uid="${uid}" data-f="pin" title="Start-no-earlier-than constraint set. Clear the date to remove it.">📌</span></div>`}</td>`,
     end: `<td>${sum ? ro('end') : inp('end','date')}</td>`,
     as: `<td>${sum ? ro('as') : inp('as','date')}</td>`,
@@ -500,37 +484,22 @@ function rowHTML(uid){
   };
   return `<tr data-uid="${uid}" class="${sum ? 'sum' : ''}${uid === selected ? ' sel' : ''}">${visCols().map(c => cell[c[0]]).join('')}</tr>`;
 }
-// ---- "Holidays & leave" section (every calendar entry gets its own row / amber band) ----
-function ganttRange(){
-  let mn = Infinity, mx = -Infinity;
-  P.tasks.forEach(t => { const s = S[t.uid]; if (s.start != null) { mn = Math.min(mn, s.start); mx = Math.max(mx, s.end); } if (s.as != null) mn = Math.min(mn, s.as); if (s.ae != null) mx = Math.max(mx, s.ae); });
-  if (!isFinite(mn)) { mn = toDn(P.settings.projectStart); mx = mn + 27; }
-  const startDn = mn - 2, endDn = Math.max(mx + 6, startDn + 27);
-  return {startDn, endDn};
-}
-function calEntries(){
-  const {startDn, endDn} = ganttRange();
-  return P.holidays.filter(h => { const [a, b] = entryRange(h); return b >= startDn && a <= endDn; })
-    .sort((x, y) => x.date.localeCompare(y.date) || (x.name || '').localeCompare(y.name || ''));
-}
-const calExtraRows = (n, open) => n ? 1 + (open ? n : 0) : 0;
-function entryLenText(h){ const [a, b] = entryRange(h), n = countDays(a, b); return n === 0 ? 'weekend only' : dayWord(n); }
 function calRowsHTML(){
   const cal = calEntries(); if (!cal.length) return '';
-  const n = visCols().length, open = !P.settings.calCollapsed;
+  const n = visCols().length, open = !P.settings.calCollapsed, DNs = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   let h = `<tr class="calhdr" data-cal="toggle"><td colspan="${n}"><span class="tog">${open ? '▾' : '▸'}</span> Holidays &amp; leave (${cal.length} in timeline)</td></tr>`;
   if (open) h += cal.map(x => {
-    const [a, b] = entryRange(x);
-    return `<tr class="calrow" data-cal="entry" title="Click to open the holiday calendar"><td colspan="${n}"><span class="cdot ${x.who ? 'p' : ''}"></span><b>${esc(x.name || (x.who ? 'Leave' : 'Holiday'))}</b> · ${x.who ? esc(x.who) : 'Everyone'} · ${fmtLong(a)}${b > a ? ' → ' + fmtLong(b) : ''} <span class="hint">(${entryLenText(x)})</span></td></tr>`;
+    const a = toDn(x.date), b = x.end ? toDn(x.end) : a;
+    return `<tr class="calrow" data-cal="entry" title="Click to open the holiday calendar"><td colspan="${n}"><span class="cdot ${x.who ? 'p' : ''}"></span><b>${esc(x.name || (x.who ? 'Leave' : 'Holiday'))}</b> · ${x.who ? esc(x.who) : 'Everyone'} · ${fmtLong(a)}${b > a ? ' → ' + fmtLong(b) : ''} <span class="hint">(${b - a + 1} day${b > a ? 's' : ''})</span></td></tr>`;
   }).join('');
   return h;
 }
-function refreshAssigneeList(){ $('#assigneeList').innerHTML = [...new Set(P.tasks.map(t => (t.assignee || '').trim()).filter(Boolean))].sort().map(a => `<option value="${esc(a)}">`).join(''); }
 function renderTable(){
-  refreshAssigneeList();
+  $('#assigneeList').innerHTML = [...new Set(P.tasks.map(t => (t.assignee || '').trim()).filter(Boolean))].sort().map(a => `<option value="${esc(a)}">`).join('');
   $('#gridBody').innerHTML = visibleUids().map(rowHTML).join('') + calRowsHTML();
   refreshValues(true);
 }
+function refreshAssigneeList(){ $('#assigneeList').innerHTML = [...new Set(P.tasks.map(t => (t.assignee || '').trim()).filter(Boolean))].sort().map(a => `<option value="${esc(a)}">`).join(''); }
 function refreshValues(force){
   const act = force ? null : document.activeElement;
   $('#gridBody').querySelectorAll('[data-f]').forEach(el => {
@@ -574,7 +543,7 @@ function handleEdit(el){
         if (!v || v === fromDn(s.end)) break;
         const e = toDn(v);
         if (e < s.start) { toast('Planned end is before planned start'); break; }
-        t.effort = countWork(s.start, e); break;     // working days only: weekends and holidays are not counted
+        t.effort = countWork(s.start, e); break;
       }
       case 'as': case 'ae': {
         const k = f === 'as' ? 'actualStart' : 'actualEnd';
@@ -659,10 +628,11 @@ function select(uid){
   $('#gridBody').querySelectorAll('tr').forEach(tr => tr.classList.toggle('sel', +tr.dataset.uid === uid));
 }
 
+
 // ---------- drag & drop reorder ----------
 function moveBlock(uid, targetUid, zone){
   const i = idxOf(uid), e = blockEnd(i), t = idxOf(targetUid);
-  if (t >= i && t < e) return false;
+  if (t >= i && t < e) return false;                       // cannot drop into itself
   const snapshot = clone(P.tasks);
   const had = hasErrors();
   const blk = P.tasks.slice(i, e);
@@ -685,11 +655,12 @@ function initDnd(){
   body.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     const h = e.target.closest('.dh, td.c-wbs'); if (!h) return;
-    const tr = h.closest('tr'); if (!tr || !tr.dataset.uid) return;
+    const tr = h.closest('tr'); if (!tr) return;
     const uid = +tr.dataset.uid, x0 = e.clientX, y0 = e.clientY;
-    let active = false, drop = null, moving;
+    let active = false, drop = null;
     const clear = () => { line.hidden = true; body.querySelectorAll('.drop-into').forEach(r => r.classList.remove('drop-into')); };
     const block = () => { const i = idxOf(uid), e2 = blockEnd(i); return new Set(P.tasks.slice(i, e2).map(t => t.uid)); };
+    let moving;
     const mv = ev => {
       if (!active) {
         if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 5) return;
@@ -701,7 +672,7 @@ function initDnd(){
       clear(); drop = null;
       const el = document.elementFromPoint(lr.left + 30, clamp(ev.clientY, lr.top + 50, lr.bottom - 20));
       const row = el && el.closest ? el.closest('#gridBody tr') : null;
-      if (!row || !row.dataset.uid) return;
+      if (!row) return;
       const tu = +row.dataset.uid; if (moving.has(tu)) return;
       const r = row.getBoundingClientRect(), f = (ev.clientY - r.top) / r.height;
       const zone = f < 0.3 ? 'before' : f > 0.7 ? 'after' : 'into';
@@ -724,6 +695,20 @@ function initDnd(){
 
 // ---------- Gantt ----------
 let markerN = 0;
+function ganttRange(){
+  let mn = Infinity, mx = -Infinity;
+  P.tasks.forEach(t => { const s = S[t.uid]; if (s.start != null) { mn = Math.min(mn, s.start); mx = Math.max(mx, s.end); } if (s.as != null) mn = Math.min(mn, s.as); if (s.ae != null) mx = Math.max(mx, s.ae); });
+  if (!isFinite(mn)) { mn = toDn(P.settings.projectStart); mx = mn + 27; }
+  const startDn = mn - 2, endDn = Math.max(mx + 6, startDn + 27);
+  return {startDn, endDn};
+}
+// every holiday / leave entry that overlaps the timeline, in date order
+function calEntries(){
+  const {startDn, endDn} = ganttRange();
+  return P.holidays.filter(h => { const a = toDn(h.date), b = h.end ? toDn(h.end) : a; return b >= startDn && a <= endDn; })
+    .sort((x, y) => x.date.localeCompare(y.date) || (x.name || '').localeCompare(y.name || ''));
+}
+const calExtraRows = (n, open) => n ? 1 + (open ? n : 0) : 0;
 function buildGantt(o){
   const rows = o.rows, rowH = 30, hdrH = 48, labW = o.labels ? o.labW : 0;
   const {startDn, endDn} = ganttRange(), days = endDn - startDn + 1;
@@ -733,6 +718,7 @@ function buildGantt(o){
   const W = labW + days * dw, bodyH = total * rowH;
   const td = todayDn(), mk = 'ah' + (++markerN);
   let hdr = '', body = '';
+  // header: months
   let d = startDn;
   while (d <= endDn) {
     const dt = new Date(d * DAY), m = dt.getUTCMonth(); let e = d;
@@ -754,6 +740,7 @@ function buildGantt(o){
   }
   hdr += `<line x1="0" y1="48" x2="${W}" y2="48" stroke="#cbd5e1"/>`;
   if (labW) hdr = `<rect x="0" y="0" width="${labW}" height="48" fill="#f8fafc" stroke="#e3e6ea"/><text x="6" y="30" font-size="11" font-weight="600" fill="#374151">WBS / Task</text>` + hdr;
+  // body: shading + grid
   for (let k = startDn; k <= endDn; k++) {
     if (!isWork(k)) body += `<rect x="${X(k)}" y="0" width="${dw}" height="${bodyH}" fill="${ctx.hol.has(k) ? '#fde9a8' : '#f3f4f6'}" opacity="${ctx.hol.has(k) ? '.75' : '1'}"/>`;
     if (dow(k) === 1) body += `<line x1="${X(k)}" y1="0" x2="${X(k)}" y2="${bodyH}" stroke="#e8ebef"/>`;
@@ -770,7 +757,7 @@ function buildGantt(o){
       if (!people.length) return;
       for (const h of personal) {
         if (!people.some(p => personMatches(h.who, p))) continue;
-        const [a, b] = entryRange(h);
+        const a = toDn(h.date); let b = h.end ? toDn(h.end) : a; if (b < a) b = a;
         const lo = Math.max(a, startDn), hi = Math.min(b, endDn); if (lo > hi) continue;
         const rng = a === b ? fromDn(a) : fromDn(a) + ' to ' + fromDn(b);
         body += `<rect x="${X(lo)}" y="${i * rowH + 1}" width="${(hi - lo + 1) * dw}" height="${rowH - 2}" fill="url(#lv${mk})" stroke="#f59e0b" stroke-width="0.5"><title>${esc(h.who)} on leave: ${esc(h.name || 'Leave')} (${rng})</title></rect>`;
@@ -779,18 +766,19 @@ function buildGantt(o){
   }
   // calendar section: one amber band per holiday / leave entry
   if (cal.length) {
-    const hy = rows.length * rowH, fs = o.labelFont || 10;
+    if (!personal.length) body += '';
+    const hy = rows.length * rowH;
     body += `<rect x="0" y="${hy}" width="${W}" height="${rowH}" fill="#f3f4f6"/>`;
-    if (labW) body += `<text x="6" y="${hy + 19}" font-size="${fs}" font-weight="700" fill="#111827">Holidays &amp; leave (${cal.length})</text>`;
+    if (labW) body += `<text x="6" y="${hy + 19}" font-size="${o.labelFont || 10}" font-weight="700" fill="#111827">Holidays &amp; leave (${cal.length})</text>`;
     if (o.calOpen) cal.forEach((h, k) => {
-      const i = rows.length + 1 + k, y = i * rowH, [a, b] = entryRange(h);
+      const i = rows.length + 1 + k, y = i * rowH, a = toDn(h.date); let b = h.end ? toDn(h.end) : a; if (b < a) b = a;
       const lo = Math.max(a, startDn), hi = Math.min(b, endDn), x1 = X(lo), x2 = X(hi + 1);
       const rng = a === b ? fromDn(a) : fromDn(a) + ' to ' + fromDn(b), txt = (h.name || 'Holiday') + (h.who ? ' · ' + h.who : ' · Everyone');
-      body += `<rect x="${x1}" y="${y + 7}" width="${Math.max(x2 - x1, 3)}" height="16" rx="3" fill="${h.who ? 'url(#lv' + mk + ')' : '#f59e0b'}" stroke="#d97706" stroke-width="1"><title>${esc(txt)} (${rng}, ${entryLenText(h)})</title></rect>`;
+      body += `<rect x="${x1}" y="${y + 7}" width="${Math.max(x2 - x1, 3)}" height="16" rx="3" fill="${h.who ? 'url(#lv' + mk + ')' : '#f59e0b'}" stroke="#d97706" stroke-width="1"><title>${esc(txt)} (${rng})</title></rect>`;
       const tw = txt.length * 5.4, right = x2 + 6 + tw <= W;
       body += `<text x="${right ? x2 + 6 : x1 - 6}" y="${y + 19}" font-size="10" ${right ? '' : 'text-anchor="end"'} fill="#92400e">${esc(txt)}</text>`;
       if (labW) {
-        const lines = o.wrap ? o.wrap(txt, 1, false) : [txt];
+        const lines = o.wrap ? o.wrap(txt, 1, false) : [txt], fs = o.labelFont || 10;
         body += lines.length === 1 ? `<text x="43" y="${y + 19}" font-size="${fs}" fill="#111827">${esc(lines[0])}</text>` : lines.map((ln, li) => `<text x="43" y="${y + 14 + li * (fs + 2)}" font-size="${fs}" fill="#111827">${esc(ln)}</text>`).join('');
         body += `<text x="6" y="${y + 19}" font-size="${fs}" fill="#9ca3af">${h.who ? 'leave' : 'holiday'}</text>`;
       }
@@ -807,7 +795,7 @@ function buildGantt(o){
     const s = S[uid], y = i * rowH, [l, r] = ext(uid), err = s.err ? ' stroke="#dc2626" stroke-width="2"' : '';
     if (labW) {
       const t = s.t, fs = o.labelFont || 10, tx = 34 + t.level * 9, bold = s.summary ? 'font-weight="700"' : '';
-      const lines = o.wrap ? o.wrap(t.name, t.level, s.summary) : [t.name.length > 34 ? t.name.slice(0, 33) + '…' : t.name];
+      let lines = o.wrap ? o.wrap(t.name, t.level, s.summary) : [t.name.length > 34 ? t.name.slice(0, 33) + '…' : t.name];
       if (lines.length === 1) body += `<text x="${tx}" y="${y + 19}" font-size="${fs}" ${bold} fill="#111827">${esc(lines[0])}</text>`;
       else body += lines.map((ln, li) => `<text x="${tx}" y="${y + 14 + li * (fs + 2)}" font-size="${fs}" ${bold} fill="#111827">${esc(ln)}</text>`).join('');
       body += `<text x="6" y="${y + 19}" font-size="${fs}" fill="#6b7280">${esc(s.wbs)}</text>`;
@@ -828,22 +816,23 @@ function buildGantt(o){
     }
     if (dw >= 6) body += `<text x="${Math.max(r, X(s.ae != null ? s.ae + 1 : s.end + 1)) + 6}" y="${y + 15}" font-size="9" fill="#6b7280">${s.effort}d</text>`;
   });
+  // dependency arrows
   let arrows = `<defs><marker id="${mk}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>`;
   rows.forEach((uid, i) => {
     S[uid].t.preds.forEach(p => {
       if (!(p.uid in rowIdx)) return;
       const j = rowIdx[p.uid], [pl, pr] = ext(p.uid), [sl, sr] = ext(uid);
       const y1 = j * rowH + 11, y2 = i * rowH + 11, mid = y1 + (y2 > y1 ? 1 : -1) * (rowH / 2);
-      let dd;
-      if (p.type === 'FS') dd = pr + 10 <= sl ? `M${pr} ${y1} H${pr + 6} V${y2} H${sl}` : `M${pr} ${y1} H${pr + 6} V${mid} H${sl - 8} V${y2} H${sl}`;
-      else if (p.type === 'SS') { const xm = Math.min(pl, sl) - 8; dd = `M${pl} ${y1} H${xm} V${y2} H${sl}`; }
-      else if (p.type === 'FF') { const xm = Math.max(pr, sr) + 8; dd = `M${pr} ${y1} H${xm} V${y2} H${sr}`; }
-      else dd = `M${pl} ${y1} H${pl - 8} V${mid} H${sr + 8} V${y2} H${sr}`;
-      arrows += `<path d="${dd}" fill="none" stroke="#64748b" stroke-width="1" marker-end="url(#${mk})"/>`;
+      let d;
+      if (p.type === 'FS') d = pr + 10 <= sl ? `M${pr} ${y1} H${pr + 6} V${y2} H${sl}` : `M${pr} ${y1} H${pr + 6} V${mid} H${sl - 8} V${y2} H${sl}`;
+      else if (p.type === 'SS') { const xm = Math.min(pl, sl) - 8; d = `M${pl} ${y1} H${xm} V${y2} H${sl}`; }
+      else if (p.type === 'FF') { const xm = Math.max(pr, sr) + 8; d = `M${pr} ${y1} H${xm} V${y2} H${sr}`; }
+      else d = `M${pl} ${y1} H${pl - 8} V${mid} H${sr + 8} V${y2} H${sr}`;
+      arrows += `<path d="${d}" fill="none" stroke="#64748b" stroke-width="1" marker-end="url(#${mk})"/>`;
     });
   });
   body += arrows;
-  if (labW) body = `<rect x="0" y="0" width="${labW}" height="${bodyH}" fill="#fff"/>` + body + `<line x1="${labW}" y1="0" x2="${labW}" y2="${bodyH}" stroke="#cbd5e1"/>`;
+  if (labW) body = `<rect x="0" y="0" width="${labW}" height="${bodyH}" fill="#fff"/>` + body.replace(/^/, '') + `<line x1="${labW}" y1="0" x2="${labW}" y2="${bodyH}" stroke="#cbd5e1"/>`;
   return {hdr, body, W, H: hdrH + bodyH, bodyH, hdrH, startDn, dw, days, extra, total};
 }
 function renderGantt(){
@@ -874,7 +863,17 @@ function setHeader(){
 }
 function renderAll(){ renderTable(); renderGantt(); renderStatus(); $('#btnHol').textContent = `Holidays (${P.holidays.length})`; }
 
+
 // ---------- resource report ----------
+const normName = x => String(x || '').trim().toLowerCase();
+const splitWho = x => String(x || '').split(/[,;\/&]|\band\b/i).map(v => v.trim()).filter(Boolean);
+// leave name matches an assignee if equal, or if all words of one are contained in the other ("Arathi" ~ "Arathi Nair")
+function personMatches(leaveWho, person){
+  const a = normName(leaveWho).split(/\s+/).filter(Boolean), b = normName(person).split(/\s+/).filter(Boolean);
+  if (!a.length || !b.length) return false;
+  return a.every(t => b.includes(t)) || b.every(t => a.includes(t));
+}
+function leaveTaskCount(who){ return P.tasks.filter(t => !S[t.uid].summary && splitWho(t.assignee).some(p => personMatches(who, p))).length; }
 function resourceReport(includeDone){
   const rows = [];
   const personalLeave = P.holidays.filter(h => h.who);
@@ -889,7 +888,7 @@ function resourceReport(includeDone){
       const clash = new Set(), hits = [];
       for (const h of personalLeave) {
         if (!personMatches(h.who, person)) continue;
-        const [a, b] = entryRange(h);
+        const a = toDn(h.date); let b = h.end ? toDn(h.end) : a; if (b < a) b = a;
         const lo = Math.max(a, s.start), hi = Math.min(b, s.end);
         if (lo > hi) continue;
         let n = 0;
@@ -898,8 +897,8 @@ function resourceReport(includeDone){
       }
       if (!clash.size) continue;
       const taskDays = Math.max(1, countWork(s.start, s.end));
-      const dd = [...clash].sort((x, y) => x - y);
-      rows.push({uid: t.uid, wbs: s.wbs, name: t.name, person, start: s.start, end: s.end, effort: s.effort, clashDays: clash.size, taskDays, first: dd[0], last: dd.at(-1), hits, full: clash.size >= taskDays, done: s.ae != null});
+      const days = [...clash].sort((x, y) => x - y);
+      rows.push({uid: t.uid, wbs: s.wbs, name: t.name, person, start: s.start, end: s.end, effort: s.effort, clashDays: clash.size, taskDays, first: days[0], last: days.at(-1), hits, full: clash.size >= taskDays, done: s.ae != null});
     }
   }
   rows.sort((a, b) => a.person.localeCompare(b.person) || a.start - b.start);
@@ -943,7 +942,7 @@ function openResourceReport(){
       const q = v => '"' + String(v).replace(/"/g, '""') + '"';
       const lines = [['Assignee','WBS','Task','Task start','Task end','Leave','Leave dates','Clashing working days','Task working days','Impact'].map(q).join(',')]
         .concat(r.rows.map(x => [x.person, x.wbs, x.name, fromDn(x.start), fromDn(x.end), x.hits.map(h => h.name).join('; '), x.hits.map(h => fromDn(h.from) + (h.to !== h.from ? ' to ' + fromDn(h.to) : '')).join('; '), x.clashDays, x.taskDays, x.full ? 'Fully blocked' : 'Partial'].map(q).join(',')));
-      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv'}));
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv'}));
       a.download = (P.name || 'project').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_resource_report.csv';
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     };
@@ -965,18 +964,18 @@ function openHolidays(){
   const mb = openModal('Holiday calendar', '');
   mb.parentElement.style.width = '780px';
   let editing = null;
+  const DN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const draw = () => {
     const hs = [...P.holidays].sort((a, b) => a.date.localeCompare(b.date));
     mb.innerHTML = `
-      <div class="hint">Holidays and leave are non-working days: they are skipped in effort and timeline calculations (and shown in amber on the Gantt). The <b>Days</b> column counts <b>working days only</b>: weekends are not counted${P.settings.includeWeekends ? ' (currently "Include weekends" is ON, so they are)' : ''}. Leave the end date empty for a single day, or set it for a range such as long leave. Click <b>Edit</b> (or double-click a row) to change an entry. Entries apply to everyone by default. Set <b>Applies to</b> to a person (as typed in the Assignee column) for personal leave: it will not move the schedule, but the <b>Resource Report</b> will flag that person's tasks that fall on it.</div>
+      <div class="hint">Holidays and leave are non-working days: they are skipped in effort and timeline calculations (and shaded red on the Gantt). Leave the end date empty for a single day, or set it for a range such as long leave. Entries apply to everyone by default. Click <b>Edit</b> (or double-click a row) to change an entry. Set <b>Applies to</b> to a person (as typed in the Assignee column) for personal leave: it will not move the schedule, but the <b>Resource Report</b> will flag that person's tasks that fall on it.</div>
       <div class="row"><label>From <input type="date" id="hDate"></label><label>To <input type="date" id="hEnd"></label><input type="text" id="hName" placeholder="Name, e.g. Annual leave (optional)" style="flex:1;min-width:140px"><label>Applies to <input type="text" id="hWho" list="assigneeList" placeholder="Everyone" style="width:120px"></label><button id="hAdd" class="primary">Add</button></div>
       <div class="row"><button id="hPreset">Add Singapore 2026 public holidays</button><span class="hint">Please verify against the MOM list.</span><button id="hClear" class="danger" style="margin-left:auto">Clear all</button></div>
       <details class="row" style="display:block"><summary>Bulk paste (one per line)</summary><div class="hint" style="margin:6px 0">Single day: <code>2026-12-24, Company shutdown</code><br>Range: <code>2026-12-21 to 2026-12-31, Annual leave</code> (also accepts <code>2026-12-21, 2026-12-31, Annual leave</code>)<br>Personal leave: add <code>@Name</code> at the end, e.g. <code>2026-12-21 to 2026-12-31, Annual leave @Priya</code></div><textarea id="hBulk" placeholder="2026-12-24, Company shutdown&#10;2026-12-21 to 2026-12-31, Annual leave"></textarea><button id="hBulkAdd">Add pasted</button></details>
-      <table><thead><tr><th>From</th><th>To</th><th title="Working days (weekends not counted)">Working days</th><th>Name</th><th>Applies to</th><th></th></tr></thead><tbody>${hs.map(h => {
+      <table><thead><tr><th>From</th><th>To</th><th>Days</th><th>Name</th><th>Applies to</th><th></th></tr></thead><tbody>${hs.map(h => {
         if (h === editing) return `<tr class="editing"><td><input type="date" id="eDate" value="${esc(h.date)}"></td><td><input type="date" id="eEnd" value="${esc(h.end || '')}"></td><td class="hint">—</td><td><input type="text" id="eName" value="${esc(h.name)}" style="width:100%;min-width:110px"></td><td><input type="text" id="eWho" list="assigneeList" value="${esc(h.who || '')}" placeholder="Everyone" style="width:100%;min-width:90px"></td><td style="white-space:nowrap"><button id="eSave" class="primary">Save</button> <button id="eCancel">Cancel</button></td></tr>`;
-        const [a, b] = entryRange(h), n = countDays(a, b), cal = b - a + 1;
-        const badge = h.who ? (leaveTaskCount(h.who) ? ` <span class="badge ok" title="Tasks whose assignee matches this name">${leaveTaskCount(h.who)} task${leaveTaskCount(h.who) > 1 ? 's' : ''}</span>` : ' <span class="badge full" title="No task has an assignee matching this name. Check the spelling against the Assignee column.">no matching assignee</span>') : '';
-        return `<tr data-row="${P.holidays.indexOf(h)}"><td>${esc(h.date)} <span class="hint">${DNAME[dow(a)]}</span></td><td>${h.end ? esc(h.end) + ' <span class="hint">' + DNAME[dow(b)] + '</span>' : '—'}</td><td title="${cal} calendar day${cal === 1 ? '' : 's'} in total">${n}${n === 0 ? ' <span class="hint">(weekend)</span>' : (cal !== n ? ' <span class="hint">of ' + cal + '</span>' : '')}</td><td>${esc(h.name)}</td><td>${h.who ? esc(h.who) + badge : '<span class="hint">Everyone</span>'}</td><td style="white-space:nowrap"><button data-edit="${P.holidays.indexOf(h)}" title="Edit">Edit</button> <button data-del="${esc(h.date)}|${esc(h.end || '')}|${esc(h.who || '')}" title="Remove">✕</button></td></tr>`;
+        const a = toDn(h.date), e = h.end ? toDn(h.end) : a;
+        return `<tr data-row="${P.holidays.indexOf(h)}"><td>${esc(h.date)} <span class="hint">${DN[dow(a)]}</span></td><td>${h.end ? esc(h.end) + ' <span class="hint">' + DN[dow(e)] + '</span>' : '—'}</td><td>${e - a + 1}</td><td>${esc(h.name)}</td><td>${h.who ? esc(h.who) + (leaveTaskCount(h.who) ? ` <span class="badge part" style="background:#dcfce7;color:#166534" title="Tasks whose assignee matches this name">${leaveTaskCount(h.who)} task${leaveTaskCount(h.who) > 1 ? 's' : ''}</span>` : ' <span class="badge full" title="No task has an assignee matching this name. Check the spelling against the Assignee column.">no matching assignee</span>') : '<span class="hint">Everyone</span>'}</td><td style="white-space:nowrap"><button data-edit="${P.holidays.indexOf(h)}" title="Edit">Edit</button> <button data-del="${esc(h.date)}|${esc(h.end || '')}|${esc(h.who || '')}" title="Remove">✕</button></td></tr>`;
       }).join('') || '<tr><td colspan="6" class="hint">No holidays yet</td></tr>'}</tbody></table>`;
     const add = (date, name, end, who) => {
       if (toDn(date) == null) return false;
@@ -995,14 +994,7 @@ function openHolidays(){
     mb.querySelector('#hClear').onclick = () => { if (P.holidays.length && confirm('Remove all holidays?')) { P.holidays = []; holidaysChanged(); draw(); } };
     mb.querySelector('#hBulkAdd').onclick = () => {
       let bad = 0;
-      mb.querySelector('#hBulk').value.split('\n').forEach(line => {
-        line = line.trim(); if (!line) return;
-        const m = line.match(/^(\d{4}-\d{2}-\d{2})(?:\s*(?:to|-|–|,|;)\s*(\d{4}-\d{2}-\d{2}))?[\s,;]*(.*)$/i);
-        if (!m) { bad++; return; }
-        let nm = m[3].trim(), who = ''; const w = nm.match(/(?:^|\s)@(.+)$/);
-        if (w) { who = w[1].trim(); nm = nm.slice(0, w.index).trim(); }
-        if (!add(m[1], nm, m[2] || '', who)) bad++;
-      });
+      mb.querySelector('#hBulk').value.split('\n').forEach(line => { line = line.trim(); if (!line) return; const m = line.match(/^(\d{4}-\d{2}-\d{2})(?:\s*(?:to|-|–|,|;)\s*(\d{4}-\d{2}-\d{2}))?[\s,;]*(.*)$/i); if (!m) { bad++; return; } let nm = m[3].trim(), who = ''; const w = nm.match(/(?:^|\s)@(.+)$/); if (w) { who = w[1].trim(); nm = nm.slice(0, w.index).trim(); } if (!add(m[1], nm, m[2] || '', who)) bad++; });
       if (bad) toast(`${bad} line(s) could not be read`);
       holidaysChanged(); draw();
     };
@@ -1024,11 +1016,7 @@ function openHolidays(){
       mb.querySelector('#eSave').onclick = save; mb.querySelector('#eCancel').onclick = cancel;
       mb.querySelectorAll('tr.editing input').forEach(i => i.addEventListener('keydown', ev => { if (ev.key === 'Enter') save(); else if (ev.key === 'Escape') cancel(); }));
     }
-    mb.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
-      const [d, e, w] = b.dataset.del.split('|'); editing = null;
-      P.holidays = P.holidays.filter(h => !(h.date === d && (h.end || '') === e && (h.who || '') === (w || '')));
-      holidaysChanged(); draw();
-    });
+    mb.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const [d, e, w] = b.dataset.del.split('|'); editing = null; P.holidays = P.holidays.filter(h => !(h.date === d && (h.end || '') === e && (h.who || '') === (w || ''))); holidaysChanged(); draw(); });
   };
   draw();
 }
@@ -1070,7 +1058,8 @@ function importJson(file){
 function exportPdf(){
   compute();
   const uids = P.tasks.map(t => t.uid);
-  const FS = 11, cv = document.createElement('canvas').getContext('2d');
+  // label column: sized to the longest task name, names wrap onto up to two lines (never truncated)
+  const FS = 11, cv = document.createElement('canvas').getContext('2d'); cv.font = `${FS}px Arial, Helvetica, sans-serif`;
   const mw = (txt, bold) => { cv.font = `${bold ? 'bold ' : ''}${FS}px Arial, Helvetica, sans-serif`; return cv.measureText(txt).width; };
   let nat = 0; P.tasks.forEach(t => { nat = Math.max(nat, mw(t.name, S[t.uid].summary) + 34 + t.level * 9 + 14); });
   const labW = clamp(Math.ceil(nat), 200, 460);
@@ -1086,6 +1075,7 @@ function exportPdf(){
   };
   const g = buildGantt({rows: uids, labels: true, labW, labelFont: FS, wrap, fitWidth: 820, cal: true, calOpen: true});
   const ff = 'font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"';
+  // paginate rows so the chart stays readable: scale = 277mm / chart width
   const mmPerPx = 277 / g.W, usableMm = 158;
   const perPage = clamp(Math.floor((usableMm / mmPerPx - g.hdrH) / 30), 8, 60);
   const pages = []; for (let i = 0; i < g.total; i += perPage) pages.push([i, Math.min(g.total, i + perPage)]);
@@ -1137,9 +1127,11 @@ function init(){
     if (tg && tg.dataset.uid) { const t = P.tasks[idxOf(+tg.dataset.uid)]; t.collapsed = !t.collapsed; renderAll(); markDirty(); }
   });
   body.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.target.blur(); });
+  // sync vertical scroll
   const L = $('#lpane'), R = $('#rpane'); let lock = false;
   L.addEventListener('scroll', () => { if (lock) return; lock = true; R.scrollTop = L.scrollTop; lock = false; });
   R.addEventListener('scroll', () => { if (lock) return; lock = true; L.scrollTop = R.scrollTop; lock = false; });
+  // divider
   const dv = $('#divider');
   dv.addEventListener('mousedown', e => {
     e.preventDefault();
@@ -1147,6 +1139,7 @@ function init(){
     const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); };
     document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
   });
+  // header controls
   $('#pname').onchange = e => { P.name = e.target.value.trim() || 'Untitled project'; markDirty(); };
   $('#incW').onchange = e => { P.settings.includeWeekends = e.target.checked; compute(); renderAll(); markDirty(); };
   $('#pstart').onchange = e => { if (!toDn(e.target.value)) { e.target.value = P.settings.projectStart; return; } P.settings.projectStart = e.target.value; compute(); renderAll(); markDirty(); };
@@ -1168,7 +1161,7 @@ function init(){
   $('#tDel').onclick = deleteTask;
   $('#tCols').onclick = e => openColMenu(e.currentTarget);
   $('#tExp').onclick = () => setAllCollapsed(false); $('#tCol').onclick = () => setAllCollapsed(true);
-  window.addEventListener('beforeunload', () => { if (ui.dirty) persistWorking(); });
+  window.addEventListener('beforeunload', e => { if (ui.dirty) { persistWorking(); } });
 
   const w = lsGet(WORK_KEY, null);
   if (w && w.P && Array.isArray(w.P.tasks)) { P = w.P; ui.projectId = w.projectId || null; ui.dirty = !!w.dirty; normalize(); compute(); }

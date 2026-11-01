@@ -72,6 +72,8 @@ body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
 #grid tr.calrow td{background:#fffbeb;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 #grid .cdot{display:inline-block;width:12px;height:10px;margin-right:8px;border-radius:2px;background:#f59e0b;border:1px solid #d97706;vertical-align:-1px}
 #grid .cdot.p{background:repeating-linear-gradient(45deg,#fef3c7 0 3px,#f59e0b 3px 5px)}
+#fAssignee{font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:#fff}
+#fAssignee.on{border-color:var(--accent);background:#eff6ff;font-weight:600}
 #colMenu{background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:8px 10px;min-width:170px}
 #colMenu label{padding:3px 0}
 #btnRes.flag{border-color:#fca5a5;background:#fef2f2;color:#b91c1c;font-weight:600}
@@ -154,6 +156,7 @@ body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
     <button id="tCol">Collapse all</button>
     <span class="sep"></span>
     <button id="tCols">Columns ▾</button>
+    <label title="Show only this person's tasks (and their parent groups) in the table and Gantt">Assignee <select id="fAssignee"><option value="">All assignees</option></select></label>
     <span style="margin-left:auto;color:var(--muted);font-size:12px">Predecessors: WBS codes, e.g. <b>1.2</b>, <b>2.1SS+2d</b>, <b>3FF-1d</b> (types FS, SS, FF, SF)</span>
   </div>
   <main id="split">
@@ -283,7 +286,7 @@ const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','
 const DNAME = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fmtLong = dn => { if (dn == null) return ''; const d = new Date(dn * DAY); return `${String(d.getUTCDate()).padStart(2,'0')} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const ui = {zoom: 22, dirty: false, projectId: null};
+const ui = {zoom: 22, dirty: false, projectId: null, filter: ''};
 let selected = null;
 let toastT;
 function toast(msg){ const el = $('#toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 3200); }
@@ -382,7 +385,7 @@ function saveProject(asNew){
   if (lsSet(LIB_KEY, lib)) { ui.dirty = false; setHeader(); persistWorking(); toast(`Saved "${P.name}"`); }
 }
 function loadInto(data, projectId){
-  P = clone(data); normalize(); ui.projectId = projectId; ui.dirty = false; selected = null;
+  P = clone(data); normalize(); ui.filter = ''; ui.projectId = projectId; ui.dirty = false; selected = null;
   compute(); setHeader(); renderAll(); persistWorking();
   $('#rpane').scrollLeft = 0; $('#lpane').scrollTop = 0;
 }
@@ -443,10 +446,39 @@ function openColMenu(btn){
     document.addEventListener('mousedown', away);
   }, 0);
 }
+// ---- assignee filter ----
+const NONE = '__none__';
+function taskMatches(t){
+  const f = ui.filter; if (!f) return true;
+  const ps = splitWho(t.assignee);
+  return f === NONE ? ps.length === 0 : ps.some(p => normName(p) === f);
+}
+function filterKeep(){
+  if (!ui.filter) return null;
+  const keep = new Set();
+  for (const t of P.tasks) {
+    const s = S[t.uid]; if (s.summary || !taskMatches(t)) continue;
+    for (let u = t.uid; u != null && !keep.has(u); u = S[u].parent) keep.add(u);
+  }
+  return keep;
+}
+function filterLabel(){ if (!ui.filter) return ''; if (ui.filter === NONE) return 'Unassigned'; const o = $('#fAssignee').querySelector(`option[value="${CSS.escape(ui.filter)}"]`); return o ? o.textContent : ui.filter; }
+function refreshFilterOptions(){
+  const sel = $('#fAssignee'), names = new Map();
+  P.tasks.forEach(t => splitWho(t.assignee).forEach(p => { const k = normName(p); if (!names.has(k)) names.set(k, p); }));
+  const hasNone = P.tasks.some(t => !S[t.uid].summary && !splitWho(t.assignee).length);
+  if (ui.filter && ui.filter !== NONE && !names.has(ui.filter)) ui.filter = '';
+  if (ui.filter === NONE && !hasNone) ui.filter = '';
+  const opts = [['', 'All assignees']].concat([...names].sort((a, b) => a[1].localeCompare(b[1])), hasNone ? [[NONE, 'Unassigned']] : []);
+  sel.innerHTML = opts.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join('');
+  sel.value = ui.filter; sel.classList.toggle('on', !!ui.filter);
+}
+function setFilter(v){ ui.filter = v; $('#fAssignee').classList.toggle('on', !!v); renderAll(); }
 function visibleUids(){
-  const out = []; let hide = null;
+  const out = []; let hide = null; const keep = filterKeep();
   for (const t of P.tasks) {
     if (hide !== null) { if (t.level > hide) continue; hide = null; }
+    if (keep && !keep.has(t.uid)) continue;
     out.push(t.uid);
     if (t.collapsed && S[t.uid].summary) hide = t.level;
   }
@@ -512,6 +544,7 @@ function ganttRange(){
 function calEntries(){
   const {startDn, endDn} = ganttRange();
   return P.holidays.filter(h => { const [a, b] = entryRange(h); return b >= startDn && a <= endDn; })
+    .filter(h => !ui.filter || ui.filter === NONE || !h.who || personMatches(h.who, filterLabel()))
     .sort((x, y) => x.date.localeCompare(y.date) || (x.name || '').localeCompare(y.name || ''));
 }
 const calExtraRows = (n, open) => n ? 1 + (open ? n : 0) : 0;
@@ -526,7 +559,7 @@ function calRowsHTML(){
   }).join('');
   return h;
 }
-function refreshAssigneeList(){ $('#assigneeList').innerHTML = [...new Set(P.tasks.map(t => (t.assignee || '').trim()).filter(Boolean))].sort().map(a => `<option value="${esc(a)}">`).join(''); }
+function refreshAssigneeList(){ refreshFilterOptions(); $('#assigneeList').innerHTML = [...new Set(P.tasks.map(t => (t.assignee || '').trim()).filter(Boolean))].sort().map(a => `<option value="${esc(a)}">`).join(''); }
 function renderTable(){
   refreshAssigneeList();
   $('#gridBody').innerHTML = visibleUids().map(rowHTML).join('') + calRowsHTML();
@@ -612,6 +645,7 @@ function addTask(sub){
     i = P.tasks.length; level = 0;
   }
   const t = mkTask('New task', level, 1);
+  if (ui.filter && ui.filter !== NONE) t.assignee = filterLabel();
   P.tasks.splice(i, 0, t); selected = t.uid;
   structChanged();
   const inp = $(`#gridBody input[data-uid="${t.uid}"][data-f="name"]`);
@@ -872,6 +906,7 @@ function renderStatus(){
     const a = Math.min(...ss.map(s => s.start)), b = Math.max(...ss.map(s => s.end));
     txt += ` · ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days`;
   }
+  if (ui.filter) txt += ` · filtered to ${filterLabel()}: showing ${P.tasks.filter(t => !S[t.uid].summary && taskMatches(t)).length} task(s)`;
   txt += ` · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s)`;
   if (hasErrors()) txt += ' · ⚠ circular dependency detected';
   $('#statusbar').textContent = txt;
@@ -1078,10 +1113,10 @@ function importJson(file){
 // ---------- PDF export (print to landscape) ----------
 function exportPdf(){
   compute();
-  const uids = P.tasks.map(t => t.uid);
+  const keepF = filterKeep(), uids = P.tasks.filter(t => !keepF || keepF.has(t.uid)).map(t => t.uid);
   const FS = 11, cv = document.createElement('canvas').getContext('2d');
   const mw = (txt, bold) => { cv.font = `${bold ? 'bold ' : ''}${FS}px Arial, Helvetica, sans-serif`; return cv.measureText(txt).width; };
-  let nat = 0; P.tasks.forEach(t => { nat = Math.max(nat, mw(t.name, S[t.uid].summary) + 34 + t.level * 9 + 14); });
+  let nat = 0; P.tasks.filter(t => !keepF || keepF.has(t.uid)).forEach(t => { nat = Math.max(nat, mw(t.name, S[t.uid].summary) + 34 + t.level * 9 + 14); });
   const labW = clamp(Math.ceil(nat), 200, 460);
   const wrap = (text, level, bold) => {
     const avail = labW - 34 - level * 9 - 10, m = x => mw(x, bold), words = String(text).split(/\s+/), lines = []; let cur = '';
@@ -1123,7 +1158,7 @@ function exportPdf(){
   };
   const rows = uids.map(u => { const s = S[u]; return `<tr class="${s.summary ? 'sum' : ''}">${pc.map(c => pcell(s, c[0])).join('')}</tr>`; }).join('');
   $('#printArea').innerHTML = `
-    <div class="p-head"><h1>${esc(P.name)}</h1><div class="meta">Timeline ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s) · printed ${fmtLong(todayDn())}</div></div>
+    <div class="p-head"><h1>${esc(P.name)}</h1><div class="meta">Timeline ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s)${ui.filter ? ' · filtered to ' + esc(filterLabel()) : ''} · printed ${fmtLong(todayDn())}</div></div>
     <table class="p-table"><thead><tr>${pc.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
     ${pages.map(([r0, r1], pi) => `<div class="p-gantt"><h2>${esc(P.name)} — Gantt chart${pages.length > 1 ? ` (page ${pi + 1} of ${pages.length}, ${r0 >= uids.length ? 'holidays &amp; leave' : 'tasks ' + lbl(r0) + ' to ' + lbl(r1 - 1)})` : ''}</h2>${svgFor(r0, r1)}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual (amber = in progress) · Purple diamond = milestone · Red dashed line = today · Grey = weekends · Amber = holidays (everyone) and leave (hatched = one person)</div></div>`).join('')}`;
   const oldTitle = document.title; document.title = P.name || 'Project';
@@ -1166,7 +1201,7 @@ function init(){
   $('#btnSave').onclick = () => saveProject(false);
   $('#btnSaveAs').onclick = () => saveProject(true);
   $('#btnOpen').onclick = openLibrary;
-  $('#btnNew').onclick = () => { if (!confirmDiscard()) return; P = blankProject(); P.tasks.push(mkTask('New task', 0, 1)); ui.projectId = null; ui.dirty = false; selected = null; normalize(); compute(); setHeader(); renderAll(); persistWorking(); };
+  $('#btnNew').onclick = () => { if (!confirmDiscard()) return; P = blankProject(); P.tasks.push(mkTask('New task', 0, 1)); ui.filter = ''; ui.projectId = null; ui.dirty = false; selected = null; normalize(); compute(); setHeader(); renderAll(); persistWorking(); };
   $('#btnExport').onclick = exportJson;
   $('#btnImport').onclick = () => $('#fileIn').click();
   $('#fileIn').onchange = e => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = ''; };
@@ -1175,6 +1210,7 @@ function init(){
   $('#tIn').onclick = indent; $('#tOut').onclick = outdent;
   $('#tUp').onclick = () => move(-1); $('#tDown').onclick = () => move(1);
   $('#tDel').onclick = deleteTask;
+  $('#fAssignee').onchange = e => setFilter(e.target.value);
   $('#tCols').onclick = e => openColMenu(e.currentTarget);
   $('#tExp').onclick = () => setAllCollapsed(false); $('#tCol').onclick = () => setAllCollapsed(true);
   window.addEventListener('beforeunload', () => { if (ui.dirty) persistWorking(); });

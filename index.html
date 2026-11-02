@@ -880,7 +880,7 @@ function buildGantt(o){
     if (s.as != null) {
       const ae = s.ae != null ? s.ae : Math.max(s.as, Math.min(td, endDn));
       const al = X(s.as), ar = X(ae + 1);
-      body += `<rect x="${al}" y="${y + 19}" width="${Math.max(ar - al, 2)}" height="6" rx="2" fill="${s.ae != null ? '#16a34a' : '#f59e0b'}"/>`;
+      body += `<rect x="${al}" y="${y + 19}" width="${Math.max(ar - al, 2)}" height="6" rx="2" fill="${s.ae != null ? '#16a34a' : (td > s.end ? '#dc2626' : '#f59e0b')}"><title>${s.ae != null ? 'Completed' : (td > s.end ? 'Overdue: in progress past planned end ' + fromDn(s.end) : 'In progress')}</title></rect>`;
     }
     if (dw >= 6) body += `<text x="${Math.max(r, X(s.ae != null ? s.ae + 1 : s.end + 1)) + 6}" y="${y + 15}" font-size="9" fill="#6b7280">${s.effort}d</text>`;
   });
@@ -1176,7 +1176,7 @@ function exportPdf(){
   $('#printArea').innerHTML = `
     <div class="p-head"><h1>${esc(P.name)}</h1><div class="meta">Timeline ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s)${ui.filter ? ' · filtered to ' + esc(filterLabel()) : ''} · printed ${fmtLong(todayDn())}</div></div>
     <table class="p-table"><thead><tr>${pc.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
-    ${pages.map(([r0, r1], pi) => `<div class="p-gantt"><h2>${esc(P.name)} — Gantt chart${pages.length > 1 ? ` (page ${pi + 1} of ${pages.length}, ${r0 >= uids.length ? 'holidays &amp; leave' : 'tasks ' + lbl(r0) + ' to ' + lbl(r1 - 1)})` : ''}</h2>${svgFor(r0, r1)}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual (amber = in progress) · Purple diamond = milestone · Red dashed line = today · Grey = weekends · Amber = holidays (everyone) and leave (hatched = one person)</div></div>`).join('')}`;
+    ${pages.map(([r0, r1], pi) => `<div class="p-gantt"><h2>${esc(P.name)} — Gantt chart${pages.length > 1 ? ` (page ${pi + 1} of ${pages.length}, ${r0 >= uids.length ? 'holidays &amp; leave' : 'tasks ' + lbl(r0) + ' to ' + lbl(r1 - 1)})` : ''}</h2>${svgFor(r0, r1)}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual complete (amber = in progress, red = overdue) · Purple diamond = milestone · Red dashed line = today · Grey = weekends · Amber = holidays (everyone) and leave (hatched = one person)</div></div>`).join('')}`;
   const oldTitle = document.title; document.title = P.name || 'Project';
   setTimeout(() => { window.print(); document.title = oldTitle; }, 80);
 }

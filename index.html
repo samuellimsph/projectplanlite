@@ -139,7 +139,7 @@ body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
       <button id="btnRes" title="Show tasks pushed out by assignees' personal leave">Resource Report</button>
     </div>
     <div class="grp"><label>Zoom <input type="range" id="zoom" min="4" max="40" step="1"></label></div>
-    <div class="grp"><button id="btnPdf" class="primary" title="Opens the print dialog in landscape. Choose 'Save as PDF'.">Export PDF</button></div>
+    <div class="grp"><button id="btnPdf" class="primary" title="Choose the period to print, then save as PDF (landscape)">Export PDF</button></div>
   </header>
   <div class="toolbar">
     <button id="tAdd">+ Task</button>
@@ -554,6 +554,7 @@ function rowHTML(uid){
 }
 // ---- "Holidays & leave" section (every calendar entry gets its own row / amber band) ----
 function ganttRange(){
+  if (ui.pdfWin) return {startDn: ui.pdfWin.from, endDn: ui.pdfWin.to};
   let mn = Infinity, mx = -Infinity;
   P.tasks.forEach(t => { const s = S[t.uid]; if (s.start != null) { mn = Math.min(mn, s.start); mx = Math.max(mx, s.end); } if (s.as != null) mn = Math.min(mn, s.as); if (s.ae != null) mx = Math.max(mx, s.ae); });
   if (!isFinite(mn)) { mn = toDn(P.settings.projectStart); mx = mn + 27; }
@@ -780,11 +781,11 @@ function initDnd(){
 // ---------- Gantt ----------
 let markerN = 0;
 function buildGantt(o){
-  let leaveOverlay = '';
+  let leaveOverlay = '', labelLayer = '';
   const rows = o.rows, rowH = 30, hdrH = 48, labW = o.labels ? o.labW : 0;
   const {startDn, endDn} = ganttRange(), days = endDn - startDn + 1;
   const cal = o.cal ? calEntries() : [], extra = calExtraRows(cal.length, o.calOpen), total = rows.length + extra;
-  const dw = o.fitWidth ? clamp(o.fitWidth / days, 2.5, 22) : ui.zoom;
+  const dw = o.fitWidth ? clamp(o.fitWidth / days, 2.5, o.maxDw || 22) : ui.zoom;
   const X = dn => labW + (dn - startDn) * dw;
   const W = labW + days * dw, bodyH = total * rowH;
   const td = todayDn(), mk = 'ah' + (++markerN);
@@ -837,7 +838,7 @@ function buildGantt(o){
   if (cal.length) {
     const hy = rows.length * rowH, fs = o.labelFont || 10;
     body += `<rect x="0" y="${hy}" width="${W}" height="${rowH}" fill="#f3f4f6"/>`;
-    if (labW) body += `<text x="6" y="${hy + 19}" font-size="${fs}" font-weight="700" fill="#111827">Holidays &amp; leave (${cal.length})</text>`;
+    if (labW) labelLayer += `<rect x="0" y="${hy}" width="${labW}" height="${rowH}" fill="#f3f4f6"/><text x="6" y="${hy + 19}" font-size="${fs}" font-weight="700" fill="#111827">Holidays &amp; leave (${cal.length})</text>`;
     if (o.calOpen) cal.forEach((h, k) => {
       const i = rows.length + 1 + k, y = i * rowH, [a, b] = entryRange(h);
       const lo = Math.max(a, startDn), hi = Math.min(b, endDn), x1 = X(lo), x2 = X(hi + 1);
@@ -847,8 +848,8 @@ function buildGantt(o){
       body += `<text x="${right ? x2 + 6 : x1 - 6}" y="${y + 19}" font-size="10" ${right ? '' : 'text-anchor="end"'} fill="#92400e">${esc(txt)}</text>`;
       if (labW) {
         const lines = o.wrap ? o.wrap(txt, 1, false) : [txt];
-        body += lines.length === 1 ? `<text x="43" y="${y + 19}" font-size="${fs}" fill="#111827">${esc(lines[0])}</text>` : lines.map((ln, li) => `<text x="43" y="${y + 14 + li * (fs + 2)}" font-size="${fs}" fill="#111827">${esc(ln)}</text>`).join('');
-        body += `<text x="6" y="${y + 19}" font-size="${fs}" fill="#9ca3af">${h.who ? 'leave' : 'holiday'}</text>`;
+        labelLayer += lines.length === 1 ? `<text x="43" y="${y + 19}" font-size="${fs}" fill="#111827">${esc(lines[0])}</text>` : lines.map((ln, li) => `<text x="43" y="${y + 14 + li * (fs + 2)}" font-size="${fs}" fill="#111827">${esc(ln)}</text>`).join('');
+        labelLayer += `<text x="6" y="${y + 19}" font-size="${fs}" fill="#9ca3af">${h.who ? 'leave' : 'holiday'}</text>`;
       }
     });
   }
@@ -864,9 +865,9 @@ function buildGantt(o){
     if (labW) {
       const t = s.t, fs = o.labelFont || 10, tx = 34 + t.level * 9, bold = s.summary ? 'font-weight="700"' : '';
       const lines = o.wrap ? o.wrap(t.name, t.level, s.summary) : [t.name.length > 34 ? t.name.slice(0, 33) + '…' : t.name];
-      if (lines.length === 1) body += `<text x="${tx}" y="${y + 19}" font-size="${fs}" ${bold} fill="#111827">${esc(lines[0])}</text>`;
-      else body += lines.map((ln, li) => `<text x="${tx}" y="${y + 14 + li * (fs + 2)}" font-size="${fs}" ${bold} fill="#111827">${esc(ln)}</text>`).join('');
-      body += `<text x="6" y="${y + 19}" font-size="${fs}" fill="#6b7280">${esc(s.wbs)}</text>`;
+      if (lines.length === 1) labelLayer += `<text x="${tx}" y="${y + 19}" font-size="${fs}" ${bold} fill="#111827">${esc(lines[0])}</text>`;
+      else labelLayer += lines.map((ln, li) => `<text x="${tx}" y="${y + 14 + li * (fs + 2)}" font-size="${fs}" ${bold} fill="#111827">${esc(ln)}</text>`).join('');
+      labelLayer += `<text x="6" y="${y + 19}" font-size="${fs}" fill="#6b7280">${esc(s.wbs)}</text>`;
     }
     if (s.summary) {
       body += `<rect x="${l}" y="${y + 7}" width="${Math.max(r - l, 2)}" height="6" fill="#1f2937"${err}/>`;
@@ -900,7 +901,10 @@ function buildGantt(o){
     });
   });
   body += arrows;
-  if (labW) body = `<rect x="0" y="0" width="${labW}" height="${bodyH}" fill="#fff"/>` + body + `<line x1="${labW}" y1="0" x2="${labW}" y2="${bodyH}" stroke="#cbd5e1"/>`;
+  if (labW) {
+    let grid = ''; for (let r = 0; r <= total; r++) grid += `<line x1="0" y1="${r * rowH}" x2="${labW}" y2="${r * rowH}" stroke="#eceff3"/>`;
+    body = body + `<rect x="0" y="0" width="${labW}" height="${bodyH}" fill="#fff"/>` + grid + labelLayer + `<line x1="${labW}" y1="0" x2="${labW}" y2="${bodyH}" stroke="#cbd5e1"/>`;
+  }
   return {hdr, body, W, H: hdrH + bodyH, bodyH, hdrH, startDn, dw, days, extra, total};
 }
 function updateGanttSel(){
@@ -1127,12 +1131,64 @@ function importJson(file){
 }
 
 // ---------- PDF export (print to landscape) ----------
-function exportPdf(){
+// tasks that fall (planned or actual) inside the window, plus the groups above them
+function windowKeep(win){
+  const keep = new Set(), td = todayDn();
+  for (const t of P.tasks) {
+    const s = S[t.uid]; if (s.summary) continue;
+    const fk = filterKeep(); if (fk && !fk.has(t.uid)) continue;
+    const ae = s.ae != null ? s.ae : (s.as != null ? Math.max(s.as, td) : null);
+    const plan = s.start <= win.to && s.end >= win.from, act = s.as != null && s.as <= win.to && ae >= win.from;
+    if (!plan && !act) continue;
+    for (let u = t.uid; u != null && !keep.has(u); u = S[u].parent) keep.add(u);
+  }
+  return keep;
+}
+function openPdfDialog(){
   compute();
-  const keepF = filterKeep(), uids = P.tasks.filter(t => !keepF || keepF.has(t.uid)).map(t => t.uid);
+  const full = ganttRange(), td = todayDn(), now = new Date(td * DAY);
+  const mb = openModal('Export PDF: choose the window', '');
+  mb.parentElement.style.width = '540px';
+  const mStart = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / DAY), mEnd = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0) / DAY);
+  const presets = [['Full timeline', full.startDn, full.endDn], ['This month', mStart, mEnd], ['Next 30 days', td, td + 29], ['Next 3 months', td, td + 90], ['From today', td, Math.max(full.endDn, td + 27)]];
+  mb.innerHTML = `<div class="hint">Only this period of the timeline is printed: the Gantt shows just these dates, and the task list shows the tasks that fall in it${ui.filter ? ` (still filtered to ${esc(filterLabel())})` : ''}.</div>
+    <div class="row">${presets.map((p, i) => `<button data-pre="${i}">${p[0]}</button>`).join('')}</div>
+    <div class="row"><label>From <input type="date" id="pdFrom" value="${fromDn(full.startDn)}"></label><label>To <input type="date" id="pdTo" value="${fromDn(full.endDn)}"></label></div>
+    <div class="row"><label><input type="checkbox" id="pdOnly" checked> Only include tasks that fall in this window</label></div>
+    <div class="hint" id="pdInfo"></div>
+    <div class="row" style="justify-content:flex-end"><button id="pdCancel">Cancel</button><button id="pdGo" class="primary">Export PDF</button></div>`;
+  const get = () => ({from: toDn(mb.querySelector('#pdFrom').value), to: toDn(mb.querySelector('#pdTo').value), only: mb.querySelector('#pdOnly').checked});
+  const upd = () => {
+    const w = get(), info = mb.querySelector('#pdInfo'), go = mb.querySelector('#pdGo');
+    let msg = '', bad = false;
+    if (w.from == null || w.to == null) { msg = 'Pick both dates.'; bad = true; }
+    else if (w.to < w.from) { msg = 'The end date is before the start date.'; bad = true; }
+    else if (w.to - w.from > 3650) { msg = 'That window is too long (max 10 years).'; bad = true; }
+    else {
+      const n = [...windowKeep(w)].filter(u => !S[u].summary).length;
+      msg = `${w.to - w.from + 1} calendar days (${countWork(w.from, w.to)} working days) · ${w.only ? n + ' task(s) fall in this window' : 'all tasks listed'}`;
+      if (n === 0) { msg += ' · nothing to print in this window'; bad = true; }
+    }
+    info.textContent = msg; go.disabled = bad;
+  };
+  mb.querySelectorAll('[data-pre]').forEach(b => b.onclick = () => { const p = presets[+b.dataset.pre]; mb.querySelector('#pdFrom').value = fromDn(p[1]); mb.querySelector('#pdTo').value = fromDn(p[2]); upd(); });
+  mb.querySelectorAll('input').forEach(i => i.addEventListener('input', upd)); mb.querySelectorAll('input').forEach(i => i.addEventListener('change', upd));
+  mb.querySelector('#pdCancel').onclick = closeModal;
+  mb.querySelector('#pdGo').onclick = () => { const w = get(); closeModal(); exportPdf(w); };
+  upd();
+}
+function exportPdf(win){
+  ui.pdfWin = win || null;
+  try { exportPdfInner(win || null); } finally { ui.pdfWin = null; }
+}
+function exportPdfInner(win){
+  compute();
+  const keepF = filterKeep(), keepW = win && win.only ? windowKeep(win) : null;
+  const uids = P.tasks.filter(t => (!keepF || keepF.has(t.uid)) && (!keepW || keepW.has(t.uid))).map(t => t.uid), incl = new Set(uids);
+  if (!uids.length) { toast('Nothing to print in that window'); return; }
   const FS = 11, cv = document.createElement('canvas').getContext('2d');
   const mw = (txt, bold) => { cv.font = `${bold ? 'bold ' : ''}${FS}px Arial, Helvetica, sans-serif`; return cv.measureText(txt).width; };
-  let nat = 0; P.tasks.filter(t => !keepF || keepF.has(t.uid)).forEach(t => { nat = Math.max(nat, mw(t.name, S[t.uid].summary) + 34 + t.level * 9 + 14); });
+  let nat = 0; P.tasks.filter(t => incl.has(t.uid)).forEach(t => { nat = Math.max(nat, mw(t.name, S[t.uid].summary) + 34 + t.level * 9 + 14); });
   const labW = clamp(Math.ceil(nat), 200, 460);
   const wrap = (text, level, bold) => {
     const avail = labW - 34 - level * 9 - 10, m = x => mw(x, bold), words = String(text).split(/\s+/), lines = []; let cur = '';
@@ -1144,7 +1200,7 @@ function exportPdf(){
     if (lines.length > 2) { let rest = lines.slice(1).join(' '); while (rest.length > 1 && m(rest + '…') > avail) rest = rest.slice(0, -1); return [lines[0], rest + '…']; }
     return lines.map(l => { while (l.length > 1 && m(l) > avail) l = l.slice(0, -1); return l; });
   };
-  const g = buildGantt({rows: uids, labels: true, labW, labelFont: FS, wrap, fitWidth: 820, cal: true, calOpen: true});
+  const g = buildGantt({rows: uids, labels: true, labW, labelFont: FS, wrap, fitWidth: 820, maxDw: win ? 40 : 22, cal: true, calOpen: true});
   const ff = 'font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"';
   const mmPerPx = 277 / g.W, usableMm = 158;
   const perPage = clamp(Math.floor((usableMm / mmPerPx - g.hdrH) / 30), 8, 60);
@@ -1155,7 +1211,7 @@ function exportPdf(){
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${g.W} ${g.hdrH + bh}" style="width:100%;height:auto;display:block" ${ff}>${g.hdr}<svg x="0" y="${g.hdrH}" width="${g.W}" height="${bh}" viewBox="0 ${r0 * 30} ${g.W} ${bh}" overflow="hidden">${g.body}</svg></svg>`;
   };
   const ss = uids.map(u => S[u]).filter(s => s.start != null);
-  const a = Math.min(...ss.map(s => s.start)), b = Math.max(...ss.map(s => s.end));
+  const a = win ? win.from : Math.min(...ss.map(s => s.start)), b = win ? win.to : Math.max(...ss.map(s => s.end));
   const pc = visCols();
   const pcell = (s, k) => {
     switch (k) {
@@ -1174,7 +1230,7 @@ function exportPdf(){
   };
   const rows = uids.map(u => { const s = S[u]; return `<tr class="${s.summary ? 'sum' : ''}">${pc.map(c => pcell(s, c[0])).join('')}</tr>`; }).join('');
   $('#printArea').innerHTML = `
-    <div class="p-head"><h1>${esc(P.name)}</h1><div class="meta">Timeline ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s)${ui.filter ? ' · filtered to ' + esc(filterLabel()) : ''} · printed ${fmtLong(todayDn())}</div></div>
+    <div class="p-head"><h1>${esc(P.name)}</h1><div class="meta">${win ? 'Window' : 'Timeline'} ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s)${ui.filter ? ' · filtered to ' + esc(filterLabel()) : ''} · printed ${fmtLong(todayDn())}</div></div>
     <table class="p-table"><thead><tr>${pc.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
     ${pages.map(([r0, r1], pi) => `<div class="p-gantt"><h2>${esc(P.name)} — Gantt chart${pages.length > 1 ? ` (page ${pi + 1} of ${pages.length}, ${r0 >= uids.length ? 'holidays &amp; leave' : 'tasks ' + lbl(r0) + ' to ' + lbl(r1 - 1)})` : ''}</h2>${svgFor(r0, r1)}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual complete (amber = in progress, red = overdue) · Purple diamond = milestone · Red dashed line = today · Grey = weekends · Amber = holidays (everyone) and leave (hatched = one person)</div></div>`).join('')}`;
   const oldTitle = document.title; document.title = P.name || 'Project';
@@ -1213,7 +1269,7 @@ function init(){
   $('#zoom').oninput = e => { ui.zoom = +e.target.value; renderGantt(); };
   $('#btnHol').onclick = openHolidays;
   $('#btnRes').onclick = openResourceReport;
-  $('#btnPdf').onclick = exportPdf;
+  $('#btnPdf').onclick = openPdfDialog;
   $('#btnSave').onclick = () => saveProject(false);
   $('#btnSaveAs').onclick = () => saveProject(true);
   $('#btnOpen').onclick = openLibrary;

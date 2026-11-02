@@ -136,7 +136,7 @@ body.dnd,body.dnd *{cursor:grabbing!important;user-select:none!important}
       <label title="When off, Saturdays and Sundays are skipped in effort, date and leave-day calculations"><input type="checkbox" id="incW"> Include weekends</label>
       <label>Project start <input type="date" id="pstart"></label>
       <button id="btnHol">Holidays (0)</button>
-      <button id="btnRes" title="Flag tasks assigned to people who are on leave">Resource Report</button>
+      <button id="btnRes" title="Show tasks pushed out by assignees' personal leave">Resource Report</button>
     </div>
     <div class="grp"><label>Zoom <input type="range" id="zoom" min="4" max="40" step="1"></label></div>
     <div class="grp"><button id="btnPdf" class="primary" title="Opens the print dialog in landscape. Choose 'Save as PDF'.">Export PDF</button></div>
@@ -181,7 +181,8 @@ const dow = dn => new Date(dn * DAY).getUTCDay();
 const todayDn = () => { const d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY); };
 
 let P = null;          // current project
-let ctx = {hol: new Set(), inc: false};
+let ctx = {hol: new Set(), inc: false, extra: null};
+let skipPersonal = false;   // true only while the report computes the 'without leave' baseline
 let S = {};            // computed schedule keyed by task uid
 
 function buildCal(){
@@ -197,6 +198,7 @@ function buildCal(){
 function isWeekend(dn){ const w = dow(dn); return w === 0 || w === 6; }
 function isWork(dn){
   if (ctx.hol.has(dn)) return false;
+  if (ctx.extra && ctx.extra.has(dn)) return false;   // the task's assignee(s) are on leave
   if (!ctx.inc && isWeekend(dn)) return false;
   return true;
 }
@@ -214,6 +216,20 @@ function countWork(a, b){ if (b < a) return 0; let c = 0; for (let d = a; d <= b
 // (Used for holiday / leave lengths: a holiday entry's own days are excluded from isWork, so this ignores the holiday set.)
 function countDays(a, b){ if (b < a) return 0; let c = 0; for (let d = a; d <= b && d - a < 20000; d++) if (ctx.inc || !isWeekend(d)) c++; return c; }
 
+// days on which a task's assignee(s) are on personal leave (any assignee on a shared task blocks the task)
+function personalSetFor(t){
+  const ps = splitWho(t.assignee); if (!ps.length) return null;
+  let set = null;
+  for (const h of P.holidays) {
+    if (!h.who || !ps.some(p => personMatches(h.who, p))) continue;
+    const a = toDn(h.date); if (a == null) continue;
+    let b = h.end ? toDn(h.end) : a; if (b == null || b < a) b = a;
+    set = set || new Set();
+    for (let d = a; d <= b && d - a < 3660; d++) set.add(d);
+  }
+  return set;
+}
+function inCal(t, fn){ const prev = ctx.extra; ctx.extra = skipPersonal ? null : personalSetFor(t); try { return fn(); } finally { ctx.extra = prev; } }
 function compute(){
   buildCal();
   S = {};
@@ -251,7 +267,8 @@ function calc(uid){
     s.as = isFinite(as) ? as : null;
     s.ae = (allDone && isFinite(ae)) ? ae : null;
   } else {
-    const t = s.t;
+    const t = s.t, prevExtra = ctx.extra;
+    ctx.extra = skipPersonal ? null : personalSetFor(t);
     const eff = Math.max(0, Math.round(+t.effort || 0));
     const base = t.startNoEarlier ? toDn(t.startNoEarlier) : toDn(P.settings.projectStart);
     let start = nextWork(base == null ? todayDn() : base);
@@ -274,6 +291,7 @@ function calc(uid){
     s.effort = eff;
     s.as = toDn(t.actualStart);
     s.ae = toDn(t.actualEnd);
+    ctx.extra = prevExtra;
   }
   s.visiting = false; s.done = true;
 }
@@ -487,7 +505,8 @@ function visibleUids(){
 function predText(t){
   return t.preds.map(p => { const ps = S[p.uid]; if (!ps) return ''; return ps.wbs + (p.type === 'FS' ? '' : p.type) + (p.lag ? (p.lag > 0 ? '+' : '') + p.lag + 'd' : ''); }).filter(Boolean).join(', ');
 }
-function statusText(s){
+function statusText(s){ return inCal(s.t, () => statusTextRaw(s)); }
+function statusTextRaw(s){
   const td = todayDn();
   if (s.ae != null) {
     let v = ' · on time';
@@ -608,7 +627,7 @@ function handleEdit(el){
         if (!v || v === fromDn(s.end)) break;
         const e = toDn(v);
         if (e < s.start) { toast('Planned end is before planned start'); break; }
-        t.effort = countWork(s.start, e); break;     // working days only: weekends and holidays are not counted
+        t.effort = inCal(t, () => countWork(s.start, e)); break;     // working days only: weekends, holidays and this person's leave are not counted
       }
       case 'as': case 'ae': {
         const k = f === 'as' ? 'actualStart' : 'actualEnd';
@@ -761,6 +780,7 @@ function initDnd(){
 // ---------- Gantt ----------
 let markerN = 0;
 function buildGantt(o){
+  let leaveOverlay = '';
   const rows = o.rows, rowH = 30, hdrH = 48, labW = o.labels ? o.labW : 0;
   const {startDn, endDn} = ganttRange(), days = endDn - startDn + 1;
   const cal = o.cal ? calEntries() : [], extra = calExtraRows(cal.length, o.calOpen), total = rows.length + extra;
@@ -809,7 +829,7 @@ function buildGantt(o){
         const [a, b] = entryRange(h);
         const lo = Math.max(a, startDn), hi = Math.min(b, endDn); if (lo > hi) continue;
         const rng = a === b ? fromDn(a) : fromDn(a) + ' to ' + fromDn(b);
-        body += `<rect x="${X(lo)}" y="${i * rowH + 1}" width="${(hi - lo + 1) * dw}" height="${rowH - 2}" fill="url(#lv${mk})" stroke="#f59e0b" stroke-width="0.5"><title>${esc(h.who)} on leave: ${esc(h.name || 'Leave')} (${rng})</title></rect>`;
+        leaveOverlay += `<rect x="${X(lo)}" y="${i * rowH + 3}" width="${(hi - lo + 1) * dw}" height="16" fill="url(#lv${mk})" stroke="#f59e0b" stroke-width="0.5"><title>${esc(h.who)} on leave: ${esc(h.name || 'Leave')} (${rng})</title></rect>`;
       }
     });
   }
@@ -864,6 +884,7 @@ function buildGantt(o){
     }
     if (dw >= 6) body += `<text x="${Math.max(r, X(s.ae != null ? s.ae + 1 : s.end + 1)) + 6}" y="${y + 15}" font-size="9" fill="#6b7280">${s.effort}d</text>`;
   });
+  body += leaveOverlay;
   let arrows = `<defs><marker id="${mk}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>`;
   rows.forEach((uid, i) => {
     S[uid].t.preds.forEach(p => {
@@ -920,33 +941,28 @@ function renderAll(){ renderTable(); renderGantt(); renderStatus(); $('#btnHol')
 
 // ---------- resource report ----------
 function resourceReport(includeDone){
-  const rows = [];
-  const personalLeave = P.holidays.filter(h => h.who);
-  const assigned = new Set();
+  const cur = {}; P.tasks.forEach(t => { cur[t.uid] = 1; });
+  skipPersonal = true; compute();
+  const base = {}; P.tasks.forEach(t => { base[t.uid] = {start: S[t.uid].start, end: S[t.uid].end}; });
+  skipPersonal = false; compute();
+  const personalLeave = P.holidays.filter(h => h.who), rows = [], assigned = new Set();
   for (const t of P.tasks) {
-    const s = S[t.uid];
-    if (s.summary) continue;
-    const people = splitWho(t.assignee);
-    people.forEach(p => assigned.add(p));
+    const s = S[t.uid]; if (s.summary) continue;
+    const people = splitWho(t.assignee); people.forEach(p => assigned.add(p));
     if (!includeDone && s.ae != null) continue;
-    for (const person of people) {
-      const clash = new Set(), hits = [];
-      for (const h of personalLeave) {
-        if (!personMatches(h.who, person)) continue;
-        const [a, b] = entryRange(h);
-        const lo = Math.max(a, s.start), hi = Math.min(b, s.end);
-        if (lo > hi) continue;
-        let n = 0;
-        for (let d = lo; d <= hi; d++) if (isWork(d)) { clash.add(d); n++; }
-        if (n > 0) hits.push({name: h.name || 'Leave', from: a, to: b});
-      }
-      if (!clash.size) continue;
-      const taskDays = Math.max(1, countWork(s.start, s.end));
-      const dd = [...clash].sort((x, y) => x - y);
-      rows.push({uid: t.uid, wbs: s.wbs, name: t.name, person, start: s.start, end: s.end, effort: s.effort, clashDays: clash.size, taskDays, first: dd[0], last: dd.at(-1), hits, full: clash.size >= taskDays, done: s.ae != null});
+    const hits = []; let lost = 0;
+    for (const h of personalLeave) {
+      if (!people.some(p => personMatches(h.who, p))) continue;
+      const [a, b] = entryRange(h), lo = Math.max(a, s.start), hi = Math.min(b, s.end);
+      if (lo > hi) continue;
+      let n = 0; for (let d = lo; d <= hi; d++) if (isWork(d)) n++;
+      if (n > 0) { hits.push({name: h.name || 'Leave', from: a, to: b}); lost += n; }
     }
+    const bs = base[t.uid], delay = s.end > bs.end ? countWork(bs.end + 1, s.end) : 0;
+    if (!hits.length && delay <= 0) continue;
+    rows.push({uid: t.uid, wbs: s.wbs, name: t.name, who: t.assignee || 'Unassigned', bs: bs.start, be: bs.end, start: s.start, end: s.end, hits, lost, delay, direct: hits.length > 0, done: s.ae != null});
   }
-  rows.sort((a, b) => a.person.localeCompare(b.person) || a.start - b.start);
+  rows.sort((a, b) => a.who.localeCompare(b.who) || a.start - b.start);
   const unmatched = [...new Set(personalLeave.map(h => h.who.trim()).filter(w => ![...assigned].some(p => personMatches(w, p))))];
   return {rows, unmatched, personalCount: personalLeave.length};
 }
@@ -957,38 +973,38 @@ function updateResBtn(){
   b.classList.toggle('flag', n > 0);
 }
 function openResourceReport(){
-  const mb = openModal('Resource report: leave clashes', '');
-  mb.parentElement.style.width = '860px';
+  const mb = openModal('Resource report: leave impact', '');
+  mb.parentElement.style.width = '900px';
   let incl = false;
   const rangeTxt = (a, b) => a === b ? fmtLong(a) : `${fmtLong(a)} → ${fmtLong(b)}`;
   const draw = () => {
-    const r = resourceReport(incl), people = new Set(r.rows.map(x => x.person));
+    const r = resourceReport(incl);
     let html = `<div class="row"><label><input type="checkbox" id="rrDone" ${incl ? 'checked' : ''}> Include completed tasks</label><span style="margin-left:auto"></span><button id="rrCsv" ${r.rows.length ? '' : 'disabled'}>Download CSV</button></div>`;
     if (!r.personalCount) {
       html += '<p class="hint">No personal leave has been entered yet. Open <b>Holidays</b> and set <b>Applies to</b> to a person\'s name (as typed in the Assignee column) to record their leave or unavailability.</p>';
     } else if (!r.rows.length) {
-      html += `<p><b>No clashes found.</b> None of the ${incl ? '' : 'open '}tasks fall on an assignee's recorded leave.</p>`;
+      html += `<p><b>No tasks are affected.</b> None of the ${incl ? '' : 'open '}tasks overlap an assignee's recorded leave.</p>`;
     } else {
-      const full = r.rows.filter(x => x.full).length;
-      html += `<p><b>${r.rows.length}</b> clash${r.rows.length > 1 ? 'es' : ''} across <b>${people.size}</b> ${people.size > 1 ? 'people' : 'person'}${full ? ` · <span class="badge full">${full} fully blocked</span>` : ''}. Only working days count: weekends and public holidays are ignored. Dates were not moved. Reassign, reschedule or adjust the leave to resolve them.</p>`;
-      html += '<table class="rr"><thead><tr><th>WBS</th><th>Task</th><th>Task dates</th><th>Leave clashing</th><th>Days</th><th>Impact</th></tr></thead><tbody>';
+      const pushed = r.rows.filter(x => x.delay > 0).length;
+      html += `<p><b>${r.rows.length}</b> task${r.rows.length > 1 ? 's' : ''} affected by personal leave · <span class="badge full">${pushed} finish later</span>. Leave days are not counted as effort: each person's tasks skip their own leave, so end dates (and anything depending on them) move out. "Without leave" shows the dates as if nobody were away.</p>`;
+      html += '<table class="rr"><thead><tr><th>WBS</th><th>Task</th><th>Without leave</th><th>Scheduled</th><th>Leave in span</th><th>End pushed by</th></tr></thead><tbody>';
       let cur = null;
       for (const x of r.rows) {
-        if (x.person !== cur) { cur = x.person; html += `<tr class="grp"><td colspan="6">${esc(cur)}</td></tr>`; }
-        html += `<tr><td>${esc(x.wbs)}</td><td>${esc(x.name)}${x.done ? ' <span class="hint">(completed)</span>' : ''}</td><td style="white-space:nowrap">${rangeTxt(x.start, x.end)}</td><td>${x.hits.map(h => `${esc(h.name)}<br><span class="hint">${rangeTxt(h.from, h.to)}</span>`).join('<br>')}</td><td style="white-space:nowrap">${x.clashDays} of ${x.taskDays}</td><td>${x.full ? '<span class="badge full">Fully blocked</span>' : '<span class="badge part">Partial</span>'}</td></tr>`;
+        if (x.who !== cur) { cur = x.who; html += `<tr class="grp"><td colspan="6">${esc(cur)}</td></tr>`; }
+        html += `<tr><td>${esc(x.wbs)}</td><td>${esc(x.name)}${x.done ? ' <span class="hint">(completed)</span>' : ''}${x.direct ? '' : ' <span class="hint">(knock-on from an earlier task)</span>'}</td><td style="white-space:nowrap">${rangeTxt(x.bs, x.be)}</td><td style="white-space:nowrap">${rangeTxt(x.start, x.end)}</td><td>${x.hits.length ? x.hits.map(h => `${esc(h.name)}<br><span class="hint">${rangeTxt(h.from, h.to)} · ${x.lost} working day${x.lost === 1 ? '' : 's'} lost</span>`).join('<br>') : '<span class="hint">—</span>'}</td><td style="white-space:nowrap">${x.delay > 0 ? `<span class="badge full">+${x.delay} working day${x.delay === 1 ? '' : 's'}</span>` : '<span class="hint">no change</span>'}</td></tr>`;
       }
       html += '</tbody></table>';
     }
-    if (r.unmatched.length) html += `<p class="hint" style="margin-top:12px">Leave recorded for ${r.unmatched.map(esc).join(', ')} but no task is assigned to ${r.unmatched.length > 1 ? 'them' : 'that name'}. Check the spelling matches the Assignee column.</p>`;
+    if (r.unmatched.length) html += `<p class="hint" style="margin-top:12px">Leave recorded for ${r.unmatched.map(esc).join(', ')} but no task is assigned to ${r.unmatched.length > 1 ? 'them' : 'that name'}, so it has no effect. Check the spelling matches the Assignee column.</p>`;
     mb.innerHTML = html;
     mb.querySelector('#rrDone').onchange = e => { incl = e.target.checked; draw(); };
     const csv = mb.querySelector('#rrCsv');
     if (csv) csv.onclick = () => {
       const q = v => '"' + String(v).replace(/"/g, '""') + '"';
-      const lines = [['Assignee','WBS','Task','Task start','Task end','Leave','Leave dates','Clashing working days','Task working days','Impact'].map(q).join(',')]
-        .concat(r.rows.map(x => [x.person, x.wbs, x.name, fromDn(x.start), fromDn(x.end), x.hits.map(h => h.name).join('; '), x.hits.map(h => fromDn(h.from) + (h.to !== h.from ? ' to ' + fromDn(h.to) : '')).join('; '), x.clashDays, x.taskDays, x.full ? 'Fully blocked' : 'Partial'].map(q).join(',')));
-      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv'}));
-      a.download = (P.name || 'project').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_resource_report.csv';
+      const lines = [['Assignee','WBS','Task','Start without leave','End without leave','Scheduled start','Scheduled end','Leave','Leave dates','Working days lost','End pushed by (working days)'].map(q).join(',')]
+        .concat(r.rows.map(x => [x.who, x.wbs, x.name, fromDn(x.bs), fromDn(x.be), fromDn(x.start), fromDn(x.end), x.hits.map(h => h.name).join('; '), x.hits.map(h => fromDn(h.from) + (h.to !== h.from ? ' to ' + fromDn(h.to) : '')).join('; '), x.lost, x.delay].map(q).join(',')));
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv'}));
+      a.download = (P.name || 'project').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_leave_impact.csv';
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     };
   };
@@ -1012,7 +1028,7 @@ function openHolidays(){
   const draw = () => {
     const hs = [...P.holidays].sort((a, b) => a.date.localeCompare(b.date));
     mb.innerHTML = `
-      <div class="hint">Holidays and leave are non-working days: they are skipped in effort and timeline calculations (and shown in amber on the Gantt). The <b>Days</b> column counts <b>working days only</b>: weekends are not counted${P.settings.includeWeekends ? ' (currently "Include weekends" is ON, so they are)' : ''}. Leave the end date empty for a single day, or set it for a range such as long leave. Click <b>Edit</b> (or double-click a row) to change an entry. Entries apply to everyone by default. Set <b>Applies to</b> to a person (as typed in the Assignee column) for personal leave: it will not move the schedule, but the <b>Resource Report</b> will flag that person's tasks that fall on it.</div>
+      <div class="hint">Holidays and leave are non-working days: they are skipped in effort and timeline calculations (and shown in amber on the Gantt). The <b>Days</b> column counts <b>working days only</b>: weekends are not counted${P.settings.includeWeekends ? ' (currently "Include weekends" is ON, so they are)' : ''}. Leave the end date empty for a single day, or set it for a range such as long leave. Click <b>Edit</b> (or double-click a row) to change an entry. Entries apply to everyone by default. Set <b>Applies to</b> to a person (as typed in the Assignee column) for personal leave: those days are not counted as effort for that person's tasks, so their task end dates move out. The <b>Resource Report</b> lists what was pushed.</div>
       <div class="row"><label>From <input type="date" id="hDate"></label><label>To <input type="date" id="hEnd"></label><input type="text" id="hName" placeholder="Name, e.g. Annual leave (optional)" style="flex:1;min-width:140px"><label>Applies to <input type="text" id="hWho" list="assigneeList" placeholder="Everyone" style="width:120px"></label><button id="hAdd" class="primary">Add</button></div>
       <div class="row"><button id="hPreset">Add Singapore 2026 public holidays</button><span class="hint">Please verify against the MOM list.</span><button id="hClear" class="danger" style="margin-left:auto">Clear all</button></div>
       <details class="row" style="display:block"><summary>Bulk paste (one per line)</summary><div class="hint" style="margin:6px 0">Single day: <code>2026-12-24, Company shutdown</code><br>Range: <code>2026-12-21 to 2026-12-31, Annual leave</code> (also accepts <code>2026-12-21, 2026-12-31, Annual leave</code>)<br>Personal leave: add <code>@Name</code> at the end, e.g. <code>2026-12-21 to 2026-12-31, Annual leave @Priya</code></div><textarea id="hBulk" placeholder="2026-12-24, Company shutdown&#10;2026-12-21 to 2026-12-31, Annual leave"></textarea><button id="hBulkAdd">Add pasted</button></details>

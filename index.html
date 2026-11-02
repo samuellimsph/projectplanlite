@@ -1233,7 +1233,9 @@ function exportPdfInner(win){
     <div class="p-head"><h1>${esc(P.name)}</h1><div class="meta">${win ? 'Window' : 'Timeline'} ${fmtLong(a)} → ${fmtLong(b)} · ${countWork(a, b)} working days · weekends ${P.settings.includeWeekends ? 'included' : 'excluded'} · ${P.holidays.length} holiday(s)${ui.filter ? ' · filtered to ' + esc(filterLabel()) : ''} · printed ${fmtLong(todayDn())}</div></div>
     <table class="p-table"><thead><tr>${pc.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
     ${pages.map(([r0, r1], pi) => `<div class="p-gantt"><h2>${esc(P.name)} — Gantt chart${pages.length > 1 ? ` (page ${pi + 1} of ${pages.length}, ${r0 >= uids.length ? 'holidays &amp; leave' : 'tasks ' + lbl(r0) + ' to ' + lbl(r1 - 1)})` : ''}</h2>${svgFor(r0, r1)}<div class="p-head meta" style="margin-top:6px">Blue = planned · Green = actual complete (amber = in progress, red = overdue) · Purple diamond = milestone · Red dashed line = today · Grey = weekends · Amber = holidays (everyone) and leave (hatched = one person)</div></div>`).join('')}`;
-  const oldTitle = document.title; document.title = P.name || 'Project';
+  const oldTitle = document.title;
+  // the browser uses the page title as the suggested PDF file name: <Project title>_<yyyy.mm.dd>
+  document.title = ((P.name || 'Project').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Project') + '_' + fromDn(todayDn()).replace(/-/g, '.');
   setTimeout(() => { window.print(); document.title = oldTitle; }, 80);
 }
 window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; });

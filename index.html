@@ -528,7 +528,7 @@ function valueFor(s, f){
   switch (f) {
     case 'wbs': return s.wbs;
     case 'name': return s.t.name;
-    case 'assignee': return s.summary ? (() => { const seen = new Set(), out = []; descendantAssignees(s).forEach(a => { const k = a.trim().toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(a); } }); return out.join(', '); })() : (s.t.assignee || '');
+    case 'assignee': return s.summary ? (() => { const seen = new Set(), out = []; descendantAssignees(s).forEach(a => splitWho(a).forEach(n => { const k = normName(n).replace(/\s+/g, ' '); if (!seen.has(k)) { seen.add(k); out.push(n.replace(/\s+/g, ' ')); } })); return out.join(', '); })() : (s.t.assignee || '');
     case 'effort': return s.summary ? s.effort : s.t.effort;
     case 'start': return fromDn(s.start);
     case 'end': return fromDn(s.end);

@@ -50,6 +50,7 @@ table#grid{border-collapse:separate;border-spacing:0;table-layout:fixed}
 #grid input:hover{border-color:var(--line)}
 #grid input:focus{outline:none;border-color:var(--accent);background:#fff}
 #grid tr.sum input[data-f=name]{font-weight:600}
+#grid input.derived{font-style:italic;color:#6b7280;font-weight:400}
 #grid input[type=date]{padding:0 2px}
 #grid .c-name{display:flex;align-items:center;gap:2px;height:30px}
 #grid .c-name input{flex:1;min-width:0}
@@ -285,6 +286,17 @@ function calc(uid){
       }
       if (cand > start) start = cand;
     }
+    // dependencies set on a parent (summary) task apply to every subtask beneath it
+    for (let anc = s.parent; anc != null; anc = S[anc].parent) {
+      for (const p of S[anc].t.preds) {
+        if (p.type !== 'FS' && p.type !== 'SS') continue;
+        const ps = S[p.uid]; if (!ps) continue;
+        if (ps.visiting) { s.err = 'Circular dependency'; continue; }
+        calc(p.uid);
+        const cand = p.type === 'SS' ? shiftWork(ps.start, p.lag) : shiftWork(ps.end, 1 + p.lag);
+        if (cand > start) start = cand;
+      }
+    }
     start = nextWork(start);
     s.start = start;
     s.end = eff <= 0 ? start : endFromStart(start, eff);
@@ -508,8 +520,24 @@ function visibleUids(){
   }
   return out;
 }
-function predText(t){
-  return t.preds.map(p => { const ps = S[p.uid]; if (!ps) return ''; return ps.wbs + (p.type === 'FS' ? '' : p.type) + (p.lag ? (p.lag > 0 ? '+' : '') + p.lag + 'd' : ''); }).filter(Boolean).join(', ');
+const fmtPred = p => { const ps = S[p.uid]; if (!ps) return ''; return ps.wbs + (p.type === 'FS' ? '' : p.type) + (p.lag ? (p.lag > 0 ? '+' : '') + p.lag + 'd' : ''); };
+function predText(t){ return t.preds.map(fmtPred).filter(Boolean).join(', '); }
+// Parent tasks with no dependency of their own show the dependency of their earliest-starting subtask(s):
+// the predecessors those subtasks have outside the parent's own subtree (rolled up automatically, never stored).
+function leavesUnder(uid){ let out = []; for (const c of S[uid].children) { if (S[c].summary) out = out.concat(leavesUnder(c)); else out.push(c); } return out; }
+const inSubtree = (root, u) => { for (let x = u; x != null; x = S[x].parent) if (x === root) return true; return false; };
+function derivedPreds(uid){
+  const cands = [];
+  for (const lu of leavesUnder(uid)) {
+    const ext = [], add = p => { if (S[p.uid] && !inSubtree(uid, p.uid)) ext.push(p); };
+    S[lu].t.preds.forEach(add);
+    for (let a = S[lu].parent; a != null && a !== uid; a = S[a].parent) S[a].t.preds.forEach(add);
+    if (ext.length) cands.push({lu, ext, start: S[lu].start});
+  }
+  if (!cands.length) return null;
+  const min = Math.min(...cands.map(c => c.start)), chosen = cands.filter(c => c.start === min), seen = new Set(), parts = [];
+  chosen.forEach(c => c.ext.forEach(p => { const k = p.uid + p.type + p.lag; if (!seen.has(k)) { seen.add(k); parts.push(fmtPred(p)); } }));
+  return {text: parts.join(', '), from: chosen.map(c => S[c.lu].wbs).join(', ')};
 }
 function statusText(s){ return inCal(s.t, () => statusTextRaw(s)); }
 function statusTextRaw(s){
@@ -534,7 +562,7 @@ function valueFor(s, f){
     case 'end': return fromDn(s.end);
     case 'as': return s.as != null ? fromDn(s.as) : '';
     case 'ae': return s.ae != null ? fromDn(s.ae) : '';
-    case 'preds': return predText(s.t);
+    case 'preds': { if (s.summary && !s.t.preds.length) { const d = derivedPreds(s.t.uid); return d ? d.text : ''; } return predText(s.t); }
     case 'status': return statusText(s);
   }
   return '';
@@ -553,7 +581,7 @@ function rowHTML(uid){
     end: `<td>${sum ? ro('end') : inp('end','date')}</td>`,
     as: `<td>${sum ? ro('as') : inp('as','date')}</td>`,
     ae: `<td>${sum ? ro('ae') : inp('ae','date')}</td>`,
-    preds: `<td>${sum ? ro('preds') : inp('preds','text','placeholder="e.g. 1.2, 2SS+1d"')}</td>`,
+    preds: `<td>${inp('preds','text', sum ? 'placeholder="applies to all subtasks" title="Applies to every subtask. Summary tasks support FS and SS only."' : 'placeholder="e.g. 1.2, 2SS+1d"')}</td>`,
     status: `<td><span class="status" data-uid="${uid}" data-f="status"></span></td>`
   };
   return `<tr data-uid="${uid}" class="${sum ? 'sum' : ''}${uid === selected ? ' sel' : ''}">${visCols().map(c => cell[c[0]]).join('')}</tr>`;
@@ -599,6 +627,7 @@ function refreshValues(force){
     if (f === 'err') { el.style.visibility = s.err ? 'visible' : 'hidden'; el.title = s.err; return; }
     if (f === 'pin') { el.style.visibility = s.t.startNoEarlier ? 'visible' : 'hidden'; return; }
     const v = valueFor(s, f);
+    if (f === 'preds' && s.summary) { const d = !s.t.preds.length ? derivedPreds(s.t.uid) : null; el.classList.toggle('derived', !!d); el.title = d ? `Rolled up automatically from the earliest-starting subtask(s): ${d.from}. Type here to set a dependency for the whole group instead.` : 'Applies to every subtask. Parent tasks support FS and SS only.'; }
     if (el.tagName === 'INPUT') el.value = v; else el.textContent = v;
   });
 }
@@ -612,6 +641,9 @@ function parsePreds(text, selfUid){
     const uid = map[m[1]];
     if (!uid) throw new Error(`No task with WBS ${m[1]}`);
     if (uid === selfUid) throw new Error('A task cannot depend on itself');
+    const isAnc = (a, d) => { for (let u = S[d].parent; u != null; u = S[u].parent) if (u === a) return true; return false; };
+    if (isAnc(uid, selfUid) || isAnc(selfUid, uid)) throw new Error('A task cannot depend on its own parent or subtask');
+    if (S[selfUid].summary && ((m[2] || 'FS').toUpperCase() === 'FF' || (m[2] || 'FS').toUpperCase() === 'SF')) throw new Error('Parent tasks support FS and SS dependencies only');
     if (out.some(o => o.uid === uid)) continue;
     out.push({uid, type: (m[2] || 'FS').toUpperCase(), lag: m[3] ? (m[3] === '-' ? -1 : 1) * +m[4] : 0});
   }
@@ -1230,7 +1262,7 @@ function exportPdfInner(win){
       case 'end': return `<td>${fmtLong(s.end)}</td>`;
       case 'as': return `<td>${fmtLong(s.as)}</td>`;
       case 'ae': return `<td>${fmtLong(s.ae)}</td>`;
-      case 'preds': return `<td>${esc(predText(s.t))}</td>`;
+      case 'preds': return `<td>${esc(valueFor(s, 'preds'))}</td>`;
       case 'status': return `<td>${esc(statusText(s))}</td>`;
     }
     return '';
